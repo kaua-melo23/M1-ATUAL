@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% block title %}Acesso Negado{% endblock %}
+{% block content %}
+<div class="flex flex-col items-center justify-center min-h-[60vh] text-center">
+    <div class="bg-white rounded-3xl border border-red-100 shadow-xl p-12 max-w-md w-full">
+        <div class="text-7xl mb-4">🔒</div>
+        <h1 class="text-4xl font-black text-red-600 italic uppercase tracking-tighter mb-2">403</h1>
+        <h2 class="text-xl font-black text-slate-800 mb-3">Acesso Negado</h2>
+        <p class="text-slate-500 text-sm font-semibold mb-6">
+            Você não tem permissão para acessar esta página.<br>
+            Entre em contato com o administrador do sistema.
+        </p>
+        {% if permissoes_necessarias %}
+        <div class="bg-red-50 border border-red-100 rounded-xl p-4 mb-6 text-left">
+            <p class="text-xs font-black text-red-400 uppercase tracking-widest mb-2">Permissão necessária</p>
+            {% for p in permissoes_necessarias %}
+            <span class="inline-block text-xs font-bold px-3 py-1 bg-red-100 text-red-700 rounded-full mr-1 mb-1">{{ p }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <a href="javascript:history.back()"
+           class="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors">
+            ← Voltar
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,387 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Aparência da Loja{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+
+    <!-- Cabeçalho da Página -->
+    <div class="flex justify-between items-end flex-wrap gap-4">
+        <div>
+            <h2 class="text-3xl font-black text-slate-800 italic uppercase tracking-tighter">🎨 Aparência</h2>
+            <p class="text-slate-500 text-sm font-bold uppercase tracking-widest">Personalize a página do cliente</p>
+        </div>
+        <a href="/" target="_blank"
+            class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs uppercase px-4 py-2 rounded-xl transition-colors">
+            <span>👁️</span> Ver loja ao vivo
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+        <!-- COLUNA ESQUERDA: Formulário -->
+        <div class="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 space-y-6">
+            <h3 class="font-black text-slate-700 uppercase tracking-tight text-sm border-b border-gray-100 pb-4">
+                Configurações da Loja
+            </h3>
+
+            <!-- Nome -->
+            <div>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Nome da Lanchonete
+                </label>
+                <input id="inp-nome" type="text" maxlength="60"
+                    value="{{ configs.get('nome_lanchonete', '') }}"
+                    placeholder="Ex: Burguer do Zé"
+                    class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+
+            <!-- Slogan -->
+            <div>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Slogan / Frase de Destaque
+                </label>
+                <input id="inp-slogan" type="text" maxlength="80"
+                    value="{{ configs.get('slogan', '') }}"
+                    placeholder="Ex: O melhor da cidade!"
+                    class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            </div>
+
+            <!-- Cores -->
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                        Cor do Header
+                    </label>
+                    <div class="flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2">
+                        <input id="inp-cor-primaria" type="color"
+                            value="{{ configs.get('cor_primaria', '#dc2626') }}"
+                            class="w-10 h-10 rounded-xl cursor-pointer border-0 bg-transparent">
+                        <span id="label-cor-primaria" class="text-xs font-mono font-bold text-slate-500">
+                            {{ configs.get('cor_primaria', '#dc2626') }}
+                        </span>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                        Cor do Texto
+                    </label>
+                    <div class="flex items-center gap-3 border border-gray-200 rounded-2xl px-4 py-2">
+                        <input id="inp-cor-texto" type="color"
+                            value="{{ configs.get('cor_texto_header', '#ffffff') }}"
+                            class="w-10 h-10 rounded-xl cursor-pointer border-0 bg-transparent">
+                        <span id="label-cor-texto" class="text-xs font-mono font-bold text-slate-500">
+                            {{ configs.get('cor_texto_header', '#ffffff') }}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Paleta de cores rápidas -->
+            <div>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
+                    Paletas Rápidas
+                </label>
+                <div class="flex flex-wrap gap-2">
+                    {% set paletas = [
+                        ('#dc2626', '#ffffff', 'Vermelho'),
+                        ('#16a34a', '#ffffff', 'Verde'),
+                        ('#2563eb', '#ffffff', 'Azul'),
+                        ('#7c3aed', '#ffffff', 'Roxo'),
+                        ('#d97706', '#ffffff', 'Laranja'),
+                        ('#0f172a', '#f8fafc', 'Dark'),
+                        ('#f8fafc', '#1e293b', 'Claro'),
+                        ('#ec4899', '#ffffff', 'Rosa'),
+                    ] %}
+                    {% for cor, texto, nome in paletas %}
+                    <button onclick="aplicarPaleta('{{ cor }}', '{{ texto }}')"
+                        title="{{ nome }}"
+                        style="background-color: {{ cor }}; color: {{ texto }};"
+                        class="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all hover:scale-105 active:scale-95 shadow-sm">
+                        {{ nome }}
+                    </button>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Upload da Logo -->
+            <div>
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Logo da Lanchonete <span class="text-slate-300 normal-case font-normal">(opcional)</span>
+                </label>
+
+                <!-- Preview -->
+                <div id="prev-logo-wrap" class="{{ '' if configs.get('logo_url') else 'hidden' }} mb-3">
+                    <img id="prev-logo" src="{{ configs.get('logo_url', '') }}"
+                        alt="Logo atual" class="h-16 rounded-xl object-contain border border-gray-100 p-1">
+                </div>
+
+                <!-- Botão de upload -->
+                <label for="inp-logo-file"
+                    class="inline-flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 border border-dashed border-slate-300 rounded-2xl px-4 py-3 text-sm text-slate-600 transition w-full justify-center">
+                    <span>📁</span>
+                    <span id="label-logo-file">Escolher imagem do computador</span>
+                </label>
+                <input id="inp-logo-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/avif"
+                    class="hidden">
+
+                <p id="msg-logo" class="text-[10px] mt-1 ml-1 text-slate-400"></p>
+                <input id="inp-logo" type="hidden" value="{{ configs.get('logo_url', '') }}">
+            </div>
+
+            <!-- Horário de Funcionamento -->
+            <div class="border-t border-gray-100 pt-6">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3">
+                    🕐 Horário de Funcionamento
+                </label>
+                <p class="text-[10px] text-slate-400 mb-3">A aba de pedidos exibirá automaticamente apenas os pedidos do turno atual.</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Abertura</label>
+                        <input id="inp-abertura" type="time"
+                            value="{{ configs.get('hora_abertura', '18:00') }}"
+                            class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Fechamento</label>
+                        <input id="inp-fechamento" type="time"
+                            value="{{ configs.get('hora_fechamento', '23:00') }}"
+                            class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fuso Horário -->
+            <div class="border-t border-gray-100 pt-6">
+                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">
+                    🌎 Fuso Horário do Servidor
+                </label>
+                <p class="text-[10px] text-slate-400 mb-3">Ajusta o horário salvo nos pedidos. Recife/Fortaleza = -3, Brasília/SP = -3, Manaus = -4, Fernando de Noronha = -2.</p>
+                <div class="flex items-center gap-3">
+                    <span class="text-sm font-bold text-slate-500">UTC</span>
+                    <select id="inp-offset-fuso"
+                        class="flex-1 border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+                        <option value="-5" {% if configs.get('offset_fuso', '-3') == '-5' %}selected{% endif %}>-5 (Acre)</option>
+                        <option value="-4" {% if configs.get('offset_fuso', '-3') == '-4' %}selected{% endif %}>-4 (Amazonas, Mato Grosso)</option>
+                        <option value="-3" {% if configs.get('offset_fuso', '-3') in ['-3', ''] or not configs.get('offset_fuso') %}selected{% endif %}>-3 (Brasília, Recife, Fortaleza, SP, RJ)</option>
+                        <option value="-2" {% if configs.get('offset_fuso', '-3') == '-2' %}selected{% endif %}>-2 (Fernando de Noronha)</option>
+                    </select>
+                </div>
+                <p class="text-[10px] text-green-600 font-bold mt-2 ml-1">⚠️ Após salvar, reinicie o servidor para aplicar.</p>
+            </div>
+
+            <!-- Botão Salvar -->
+            <button id="btn-salvar" onclick="salvarConfiguracoes()"
+                class="w-full bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black uppercase tracking-widest py-4 rounded-2xl transition-all shadow-lg shadow-blue-200 text-sm">
+                💾 Salvar Alterações
+            </button>
+
+            <!-- Feedback -->
+            <div id="feedback" class="hidden text-center py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-widest"></div>
+        </div>
+
+        <!-- COLUNA DIREITA: Preview ao vivo -->
+        <div class="sticky top-4 space-y-4">
+            <h3 class="font-black text-slate-700 uppercase tracking-tight text-sm">
+                Preview em Tempo Real
+            </h3>
+
+            <!-- Moldura de celular -->
+            <div class="mx-auto w-[280px]">
+                <div class="bg-slate-900 rounded-[2.5rem] p-3 shadow-2xl">
+                    <div class="bg-white rounded-[2rem] overflow-hidden">
+                        <!-- Barra do celular -->
+                        <div class="bg-slate-900 h-6 flex items-center justify-center">
+                            <div class="w-16 h-1.5 bg-slate-700 rounded-full"></div>
+                        </div>
+
+                        <!-- Preview do Header -->
+                        <div id="prev-header"
+                            style="background-color: {{ configs.get('cor_primaria', '#dc2626') }}; color: {{ configs.get('cor_texto_header', '#ffffff') }};"
+                            class="p-5 pt-8 text-center rounded-b-[2rem] mb-3 transition-all duration-300">
+
+                            <div id="prev-logo-wrap" class="{{ '' if configs.get('logo_url') else 'hidden' }} mb-2">
+                                <img id="prev-logo" src="{{ configs.get('logo_url', '') }}"
+                                    class="h-10 w-auto mx-auto object-contain rounded-lg">
+                            </div>
+
+                            <h1 id="prev-nome"
+                                class="text-lg font-black italic uppercase tracking-tighter leading-none">
+                                {{ configs.get('nome_lanchonete', 'Lanchonete Express') }}
+                            </h1>
+                            <p id="prev-slogan"
+                                class="text-[8px] opacity-90 font-bold uppercase tracking-widest mt-1 italic">
+                                {{ configs.get('slogan', 'O melhor sabor da região') }}
+                            </p>
+                        </div>
+
+                        <!-- Preview do corpo -->
+                        <div class="px-3 pb-4 space-y-2">
+                            <div class="bg-gray-100 rounded-2xl p-3 flex items-center gap-3">
+                                <div class="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0"></div>
+                                <div class="flex-1 space-y-1.5">
+                                    <div class="h-2.5 bg-gray-300 rounded-full w-3/4"></div>
+                                    <div class="h-2 bg-gray-200 rounded-full w-full"></div>
+                                    <div class="flex justify-between items-center mt-1">
+                                        <div class="h-3 bg-green-200 rounded-full w-12"></div>
+                                        <div id="prev-btn"
+                                            style="background-color: {{ configs.get('cor_primaria', '#dc2626') }};"
+                                            class="w-6 h-6 rounded-full transition-colors duration-300"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-gray-100 rounded-2xl p-3 flex items-center gap-3">
+                                <div class="w-12 h-12 bg-gray-200 rounded-xl flex-shrink-0"></div>
+                                <div class="flex-1 space-y-1.5">
+                                    <div class="h-2.5 bg-gray-300 rounded-full w-2/3"></div>
+                                    <div class="h-2 bg-gray-200 rounded-full w-full"></div>
+                                    <div class="flex justify-between items-center mt-1">
+                                        <div class="h-3 bg-green-200 rounded-full w-14"></div>
+                                        <div id="prev-btn2"
+                                            style="background-color: {{ configs.get('cor_primaria', '#dc2626') }};"
+                                            class="w-6 h-6 rounded-full transition-colors duration-300"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <p class="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                Prévia aproximada da loja
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Atualiza o preview em tempo real conforme o usuário digita/escolhe
+    const inpNome = document.getElementById('inp-nome');
+    const inpSlogan = document.getElementById('inp-slogan');
+    const inpCorPrimaria = document.getElementById('inp-cor-primaria');
+    const inpCorTexto = document.getElementById('inp-cor-texto');
+    const inpLogo = document.getElementById('inp-logo');
+
+    function atualizarPreview() {
+        const nome = inpNome.value || 'Sua Lanchonete';
+        const slogan = inpSlogan.value || 'Seu slogan aqui';
+        const cor = inpCorPrimaria.value;
+        const texto = inpCorTexto.value;
+        const logo = inpLogo.value;
+
+        document.getElementById('prev-nome').textContent = nome;
+        document.getElementById('prev-slogan').textContent = slogan;
+
+        const header = document.getElementById('prev-header');
+        header.style.backgroundColor = cor;
+        header.style.color = texto;
+
+        document.getElementById('prev-btn').style.backgroundColor = cor;
+        document.getElementById('prev-btn2').style.backgroundColor = cor;
+
+        document.getElementById('label-cor-primaria').textContent = cor;
+        document.getElementById('label-cor-texto').textContent = texto;
+
+        const logoWrap = document.getElementById('prev-logo-wrap');
+        const logoImg = document.getElementById('prev-logo');
+        if (logo) {
+            logoImg.src = logo;
+            logoWrap.classList.remove('hidden');
+        } else {
+            logoWrap.classList.add('hidden');
+        }
+    }
+
+    function aplicarPaleta(cor, texto) {
+        inpCorPrimaria.value = cor;
+        inpCorTexto.value = texto;
+        atualizarPreview();
+    }
+
+    inpNome.addEventListener('input', atualizarPreview);
+    inpSlogan.addEventListener('input', atualizarPreview);
+    inpCorPrimaria.addEventListener('input', atualizarPreview);
+    inpCorTexto.addEventListener('input', atualizarPreview);
+
+    // Upload local de logo
+    const inpLogoFile = document.getElementById('inp-logo-file');
+    const labelLogoFile = document.getElementById('label-logo-file');
+    const msgLogo = document.getElementById('msg-logo');
+
+    inpLogoFile.addEventListener('change', async function () {
+        const arquivo = this.files[0];
+        if (!arquivo) return;
+
+        labelLogoFile.textContent = arquivo.name;
+        msgLogo.textContent = '⏳ Enviando...';
+        msgLogo.className = 'text-[10px] mt-1 ml-1 text-slate-400';
+
+        const formData = new FormData();
+        formData.append('logo', arquivo);
+
+        try {
+            const res = await fetch('/api/upload/logo', { method: 'POST', body: formData });
+            const data = await res.json();
+            if (res.ok) {
+                inpLogo.value = data.logo_url;
+                msgLogo.textContent = '✅ Logo salva com sucesso!';
+                msgLogo.className = 'text-[10px] mt-1 ml-1 text-green-500';
+                atualizarPreview();
+            } else {
+                msgLogo.textContent = '❌ ' + (data.erro || 'Erro ao enviar.');
+                msgLogo.className = 'text-[10px] mt-1 ml-1 text-red-500';
+            }
+        } catch (e) {
+            msgLogo.textContent = '❌ Falha na conexão.';
+            msgLogo.className = 'text-[10px] mt-1 ml-1 text-red-500';
+        }
+    });
+
+    async function salvarConfiguracoes() {
+        const btn = document.getElementById('btn-salvar');
+        const feedback = document.getElementById('feedback');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Salvando...';
+
+        const payload = {
+            nome_lanchonete: inpNome.value,
+            slogan: inpSlogan.value,
+            cor_primaria: inpCorPrimaria.value,
+            cor_texto_header: inpCorTexto.value,
+            logo_url: inpLogo.value,
+            hora_abertura: document.getElementById('inp-abertura').value,
+            hora_fechamento: document.getElementById('inp-fechamento').value,
+            offset_fuso: document.getElementById('inp-offset-fuso').value,
+        };
+
+        try {
+            const res = await fetch('/api/configuracoes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+
+            if (data.status === 'sucesso') {
+                feedback.textContent = '✅ Salvo com sucesso! A loja já foi atualizada.';
+                feedback.className = 'text-center py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-widest bg-green-50 text-green-700 border border-green-100';
+            } else {
+                throw new Error('Erro do servidor');
+            }
+        } catch (e) {
+            feedback.textContent = '❌ Erro ao salvar. Tente novamente.';
+            feedback.className = 'text-center py-3 px-4 rounded-2xl text-xs font-black uppercase tracking-widest bg-red-50 text-red-700 border border-red-100';
+        } finally {
+            feedback.classList.remove('hidden');
+            btn.disabled = false;
+            btn.textContent = '💾 Salvar Alterações';
+            setTimeout(() => feedback.classList.add('hidden'), 4000);
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,779 @@
+{% extends "admin/base.html" %}
+{% block title %}Gestão de Estoque{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+  <!-- HEADER -->
+  <div class="bg-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-black text-slate-800">📦 Gestão de Estoque</h1>
+      <p class="text-slate-500 text-sm">Controle de insumos brutos, fabricados, receitas e vínculos com produtos.</p>
+    </div>
+    <div id="badge-alertas" class="hidden bg-red-100 text-red-700 font-black px-4 py-2 rounded-xl text-sm flex items-center gap-2">
+      ⚠️ <span id="qtd-alertas">0</span> alerta(s) de estoque baixo
+    </div>
+  </div>
+
+  <!-- ABAS -->
+  <div class="flex gap-2 flex-wrap">
+    <button onclick="trocarAba('brutos')" class="aba-btn aba-ativa px-5 py-2.5 rounded-xl font-black text-sm transition-all" data-aba="brutos">📦 Insumos Brutos</button>
+    <button onclick="trocarAba('fabricados')" class="aba-btn px-5 py-2.5 rounded-xl font-black text-sm transition-all" data-aba="fabricados">🔧 Insumos Fabricados</button>
+    <button onclick="trocarAba('alertas')" class="aba-btn px-5 py-2.5 rounded-xl font-black text-sm transition-all" data-aba="alertas">⚠️ Alertas</button>
+    <button onclick="trocarAba('vinculos')" class="aba-btn px-5 py-2.5 rounded-xl font-black text-sm transition-all" data-aba="vinculos">🔗 Vincular Receitas</button>
+  </div>
+
+  <!-- ABA: BRUTOS -->
+  <div id="aba-brutos" class="aba-conteudo space-y-4">
+    <div class="flex justify-between items-center gap-3">
+      <input type="text" id="busca-brutos" oninput="filtrarBrutos()" placeholder="🔍 Pesquisar insumo bruto..." class="flex-1 p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500 text-sm">
+      <button onclick="abrirNovoInsumo('bruto')" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap">➕ Novo Insumo Bruto</button>
+    </div>
+    <!-- Cards Grid -->
+    <div id="cards-brutos" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- ABA: FABRICADOS -->
+  <div id="aba-fabricados" class="aba-conteudo space-y-4 hidden">
+    <div class="flex justify-between items-center gap-3">
+      <input type="text" id="busca-fabricados" oninput="filtrarFabricados()" placeholder="🔍 Pesquisar insumo fabricado..." class="flex-1 p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-purple-500 text-sm">
+      <button onclick="abrirNovoInsumo('fabricado')" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition-all whitespace-nowrap">➕ Novo Insumo Fabricado</button>
+    </div>
+    <div id="cards-fabricados" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- ABA: ALERTAS -->
+  <div id="aba-alertas" class="aba-conteudo hidden space-y-6">
+    <!-- Configurar alertas -->
+    <div class="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+      <h2 class="font-black text-slate-800 text-lg">⚙️ Configurar Alerta de Estoque</h2>
+      <p class="text-slate-500 text-sm">Selecione um insumo e defina o estoque mínimo que dispara o alerta.</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="md:col-span-1">
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Insumo</label>
+          <select id="alerta-select-insumo" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold text-slate-700 outline-none focus:border-orange-500 bg-white">
+            <option value="">-- Escolha um insumo --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Quantidade mínima para alerta</label>
+          <input type="number" id="alerta-minimo" step="0.01" placeholder="Ex: 5" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-orange-500">
+        </div>
+        <div class="flex items-end">
+          <button onclick="salvarAlertaInsumo()" class="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-black text-sm uppercase transition-all">💾 Salvar Alerta</button>
+        </div>
+      </div>
+    </div>
+    <!-- Lista de alertas ativos -->
+    <div>
+      <h2 class="font-black text-slate-700 text-base mb-3 uppercase tracking-wide">Insumos com Estoque Baixo</h2>
+      <div id="lista-alertas" class="space-y-3"></div>
+    </div>
+  </div>
+
+  <!-- ABA: VÍNCULOS / RECEITAS -->
+  <div id="aba-vinculos" class="aba-conteudo hidden">
+    <div class="bg-white p-6 rounded-2xl shadow-sm space-y-4">
+      <h2 class="font-black text-slate-800 text-lg">🔗 Vínculo Produto → Receita de Insumos</h2>
+      <p class="text-slate-500 text-sm">Defina quais receitas (insumos) são consumidas quando um produto é vendido. O estoque será descontado automaticamente nas vendas.</p>
+      <div>
+        <label class="block text-xs font-black text-slate-500 uppercase mb-1">Selecione o Produto</label>
+        <select id="select-produto-vinculo" onchange="carregarVinculosProduto()" class="w-full p-3 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none">
+          <option value="">-- Escolha um produto --</option>
+        </select>
+      </div>
+      <div id="area-vinculos" class="hidden space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="font-black text-slate-700 text-sm uppercase tracking-wide">Receitas/Insumos consumidos por este produto:</h3>
+          <button onclick="adicionarLinhaVinculo()" class="text-blue-600 font-bold text-xs uppercase hover:underline">+ Adicionar insumo</button>
+        </div>
+        <div id="linhas-vinculos" class="space-y-2"></div>
+        <button onclick="salvarVinculos()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-sm uppercase hover:bg-blue-600 transition-all">💾 Salvar Vínculos</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== MODAIS ====== -->
+
+<!-- Modal: Novo/Editar Insumo -->
+<div id="modal-insumo" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+      <h3 id="titulo-modal-insumo" class="text-xl font-black text-slate-800">Novo Insumo</h3>
+      <button onclick="fecharModal('modal-insumo')" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="insumo-edit-id">
+      <input type="hidden" id="insumo-tipo-hidden">
+      <div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-500 font-mono" id="insumo-id-display" style="display:none">
+        ID: <span id="insumo-id-valor" class="font-black text-slate-700"></span>
+      </div>
+      <div>
+        <label class="block text-xs font-black text-slate-500 uppercase mb-1">Nome *</label>
+        <input type="text" id="insumo-nome" placeholder="Ex: Carne de hambúrguer industrial" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Unidade Base *</label>
+          <select id="insumo-unidade" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500 bg-white">
+            <option value="g">g (gramas)</option>
+            <option value="kg">kg (quilos)</option>
+            <option value="ml">ml (mililitros)</option>
+            <option value="L">L (litros)</option>
+            <option value="un">un (unidades)</option>
+            <option value="cx">cx (caixas)</option>
+            <option value="pç">pç (peças)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Alerta de mínimo *</label>
+          <input type="number" id="insumo-minimo" step="0.01" placeholder="0" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+          <p class="text-[10px] text-slate-400 mt-1">Abaixo disso → alerta vermelho</p>
+        </div>
+      </div>
+      <div>
+        <label class="block text-xs font-black text-slate-500 uppercase mb-1">Data de Validade padrão</label>
+        <input type="date" id="insumo-validade-padrao" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+        <p class="text-[10px] text-slate-400 mt-1">Usado como referência. Cada lote terá sua própria validade.</p>
+      </div>
+      <button onclick="salvarInsumo()" class="w-full bg-slate-900 text-white py-3 rounded-xl font-black text-sm uppercase hover:bg-blue-600 transition-all">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Dar Entrada de Lote (Bruto) -->
+<div id="modal-entrada" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+      <div>
+        <h3 class="text-xl font-black text-slate-800">➕ Dar Entrada</h3>
+        <p id="subtitulo-entrada" class="text-slate-500 text-sm"></p>
+      </div>
+      <button onclick="fecharModal('modal-entrada')" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="entrada-insumo-id">
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Quantidade recebida</label>
+          <input type="number" id="entrada-qtd" step="0.01" placeholder="Ex: 5" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Fator de conversão</label>
+          <input type="number" id="entrada-fator" step="0.01" value="1" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+          <p class="text-[10px] text-slate-400 mt-1">Ex: 1 caixa = 12 un → fator 12</p>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Data de validade *</label>
+          <input type="date" id="entrada-validade" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Custo do lote (R$)</label>
+          <input type="number" id="entrada-custo" step="0.01" placeholder="0.00" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500">
+        </div>
+      </div>
+      <div id="preview-entrada" class="hidden bg-blue-50 border border-blue-100 rounded-xl p-3 text-blue-700 text-sm font-bold text-center"></div>
+      <button onclick="confirmarEntrada()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-black text-sm uppercase hover:bg-blue-700 transition-all">✅ Confirmar Entrada</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Ver Lotes -->
+<div id="modal-lotes" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+      <h3 id="titulo-lotes" class="text-xl font-black text-slate-800">Lotes</h3>
+      <button onclick="fecharModal('modal-lotes')" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    <div class="p-6 overflow-y-auto max-h-[60vh]">
+      <div id="conteudo-lotes"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Fabricar Lote (MELHORADO) -->
+<div id="modal-fabricar" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl">
+    <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+      <div>
+        <h3 class="text-xl font-black text-slate-800">🔧 Fabricar Lote</h3>
+        <p id="subtitulo-fabricar" class="text-slate-500 text-sm"></p>
+      </div>
+      <button onclick="fecharModal('modal-fabricar')" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    <div class="p-6 space-y-5">
+      <input type="hidden" id="fabricar-insumo-id">
+
+      <!-- Receita base -->
+      <div id="preview-receita" class="bg-purple-50 border border-purple-100 rounded-xl p-4 text-sm space-y-2"></div>
+
+      <!-- Quantidade + validade -->
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Quantidade a produzir *</label>
+          <input type="number" id="fabricar-qtd" step="0.01" placeholder="Ex: 10" oninput="atualizarPreviewFabricar()" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-purple-500">
+        </div>
+        <div>
+          <label class="block text-xs font-black text-slate-500 uppercase mb-1">Validade do lote *</label>
+          <input type="date" id="fabricar-validade" class="w-full p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-purple-500">
+        </div>
+      </div>
+
+      <!-- Preview de insumos necessários -->
+      <div id="aviso-fabricar" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-700 text-sm font-bold"></div>
+
+      <!-- Salvar como template -->
+      <div class="border-t border-slate-100 pt-4 space-y-3">
+        <div class="flex items-center gap-3">
+          <input type="checkbox" id="fabricar-salvar-template" class="w-4 h-4 accent-purple-600">
+          <label for="fabricar-salvar-template" class="text-sm font-bold text-slate-600 cursor-pointer">
+            💾 Atualizar receita salva com esses ingredientes
+          </label>
+        </div>
+        <p class="text-xs text-slate-400 ml-7">Marque para que a próxima fabricação já use estes ingredientes como padrão.</p>
+      </div>
+
+      <button onclick="confirmarFabricar()" class="w-full bg-purple-600 text-white py-3 rounded-xl font-black text-sm uppercase hover:bg-purple-700 transition-all">🔧 Fabricar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar Receita -->
+<div id="modal-receita" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl">
+    <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+      <div>
+        <h3 class="text-xl font-black text-slate-800">📋 Receita</h3>
+        <p id="subtitulo-receita" class="text-slate-500 text-sm"></p>
+      </div>
+      <button onclick="fecharModal('modal-receita')" class="text-slate-400 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    <div class="p-6 space-y-4">
+      <input type="hidden" id="receita-fabricado-id">
+      <div class="bg-purple-50 border border-purple-100 rounded-xl p-3 text-xs text-purple-700 font-bold">
+        📌 Defina os insumos brutos e quantidades necessários para produzir <strong>1 unidade</strong> deste insumo fabricado. Esta receita será usada automaticamente ao fabricar lotes.
+      </div>
+      <div id="linhas-receita" class="space-y-2"></div>
+      <button onclick="adicionarLinhaReceita()" class="text-purple-600 font-bold text-xs uppercase hover:underline">+ Adicionar ingrediente</button>
+      <button onclick="salvarReceita()" class="w-full bg-purple-600 text-white py-3 rounded-xl font-black text-sm uppercase hover:bg-purple-700 transition-all mt-2">💾 Salvar Receita</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .aba-btn { background: #f1f5f9; color: #64748b; }
+  .aba-ativa { background: #1e293b; color: #fff; }
+  .card-insumo { transition: box-shadow 0.15s, transform 0.15s; }
+  .card-insumo:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.10); transform: translateY(-2px); }
+</style>
+<script>
+  let brutos = [], fabricados = [], todosInsumos = [], todosProdutos = [];
+
+  // ===== INICIALIZAÇÃO =====
+  document.addEventListener('DOMContentLoaded', async () => {
+    await Promise.all([carregarInsumos(), carregarProdutos()]);
+    carregarAlertas();
+    popularSelectAlertas();
+  });
+
+  async function carregarInsumos() {
+    const res = await fetch('/api/insumos');
+    todosInsumos = await res.json();
+    brutos = todosInsumos.filter(i => i.tipo !== 'fabricado');
+    fabricados = todosInsumos.filter(i => i.tipo === 'fabricado');
+    renderizarBrutos(brutos);
+    renderizarFabricados(fabricados);
+  }
+
+  async function carregarProdutos() {
+    const res = await fetch('/api/produtos');
+    todosProdutos = await res.json();
+    const sel = document.getElementById('select-produto-vinculo');
+    sel.innerHTML = '<option value="">-- Escolha um produto --</option>';
+    todosProdutos.forEach(p => {
+      sel.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+    });
+  }
+
+  async function carregarAlertas() {
+    const res = await fetch('/api/estoque/alertas');
+    const alertas = await res.json();
+    const badge = document.getElementById('badge-alertas');
+    document.getElementById('qtd-alertas').innerText = alertas.length;
+    badge.classList.toggle('hidden', alertas.length === 0);
+    renderizarAlertas(alertas);
+  }
+
+  // ===== ABAS =====
+  function trocarAba(aba) {
+    document.querySelectorAll('.aba-conteudo').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.aba-btn').forEach(btn => {
+      btn.classList.remove('aba-ativa');
+    });
+    document.getElementById(`aba-${aba}`).classList.remove('hidden');
+    document.querySelector(`[data-aba="${aba}"]`).classList.add('aba-ativa');
+  }
+
+  // ===== BUSCA =====
+  function filtrarBrutos() {
+    const q = document.getElementById('busca-brutos').value.toLowerCase();
+    const filtrados = brutos.filter(i => i.nome.toLowerCase().includes(q) || String(i.id).includes(q));
+    renderizarBrutos(filtrados);
+  }
+  function filtrarFabricados() {
+    const q = document.getElementById('busca-fabricados').value.toLowerCase();
+    const filtrados = fabricados.filter(i => i.nome.toLowerCase().includes(q) || String(i.id).includes(q));
+    renderizarFabricados(filtrados);
+  }
+
+  // ===== BADGES =====
+  function statusBadge(atual, minimo) {
+    if (minimo <= 0) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500 uppercase">Sem alerta</span>`;
+    if (atual <= 0) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-100 text-red-600 uppercase">🔴 Esgotado</span>`;
+    if (atual <= minimo) return `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-orange-100 text-orange-600 uppercase">⚠️ Baixo</span>`;
+    return `<span class="px-2 py-0.5 rounded-full text-[10px] font-black bg-green-100 text-green-600 uppercase">✅ Ok</span>`;
+  }
+
+  function validadeBadge(data) {
+    if (!data) return `<span class="text-slate-400 text-xs">Sem validade</span>`;
+    const dias = Math.ceil((new Date(data) - new Date()) / 86400000);
+    if (dias < 0) return `<span class="text-red-500 font-bold text-xs">🚨 Vencido!</span>`;
+    if (dias <= 7) return `<span class="text-orange-500 font-bold text-xs">⚠️ Vence em ${dias}d (${data})</span>`;
+    return `<span class="text-slate-500 text-xs">📅 ${data}</span>`;
+  }
+
+  // ===== RENDERIZAÇÃO: CARDS BRUTOS =====
+  function renderizarBrutos(lista) {
+    const container = document.getElementById('cards-brutos');
+    if (!lista || lista.length === 0) {
+      container.innerHTML = `<div class="col-span-3 bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-slate-400 italic">Nenhum insumo bruto encontrado.</p></div>`;
+      return;
+    }
+    container.innerHTML = lista.map(i => {
+      const borderColor = i.estoque_minimo > 0 && i.total_estoque <= 0 ? 'border-red-200'
+        : i.estoque_minimo > 0 && i.total_estoque <= i.estoque_minimo ? 'border-orange-200'
+        : 'border-slate-100';
+      return `
+        <div class="card-insumo bg-white rounded-2xl shadow-sm border-2 ${borderColor} p-5 flex flex-col gap-3">
+          <div class="flex justify-between items-start gap-2">
+            <div class="flex-1 min-w-0">
+              <p class="font-black text-slate-800 text-sm leading-tight truncate">${i.nome}</p>
+              <p class="text-[10px] text-slate-400 font-mono mt-0.5">ID: ${i.id}</p>
+            </div>
+            ${statusBadge(i.total_estoque, i.estoque_minimo)}
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-slate-50 rounded-xl p-2">
+              <p class="text-slate-400 font-bold uppercase text-[10px]">Estoque</p>
+              <p class="font-black text-slate-800">${Number(i.total_estoque || 0).toFixed(2)} <span class="font-normal text-slate-400">${i.unidade_base}</span></p>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-2">
+              <p class="text-slate-400 font-bold uppercase text-[10px]">Mínimo</p>
+              <p class="font-black text-slate-600">${i.estoque_minimo > 0 ? i.estoque_minimo + ' ' + i.unidade_base : '—'}</p>
+            </div>
+          </div>
+          <div class="text-xs">${validadeBadge(i.proxima_validade)}</div>
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="abrirEntrada(${i.id}, '${i.nome.replace(/'/g,"\\'")}', '${i.unidade_base}')" class="flex-1 px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-xs font-bold text-center transition-all">➕ Entrada</button>
+            <button onclick="abrirLotes(${i.id}, '${i.nome.replace(/'/g,"\\'")}')}" class="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 text-xs font-bold transition-all">📋 Lotes</button>
+            <button onclick="abrirEditarInsumo(${JSON.stringify(i).replace(/"/g,'&quot;')})" class="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 text-xs transition-all">✏️</button>
+            <button onclick="deletarInsumo(${i.id})" class="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 text-xs transition-all">🗑️</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ===== RENDERIZAÇÃO: CARDS FABRICADOS =====
+  function renderizarFabricados(lista) {
+    const container = document.getElementById('cards-fabricados');
+    if (!lista || lista.length === 0) {
+      container.innerHTML = `<div class="col-span-3 bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-slate-400 italic">Nenhum insumo fabricado encontrado.</p></div>`;
+      return;
+    }
+    container.innerHTML = lista.map(i => {
+      const borderColor = i.estoque_minimo > 0 && i.total_estoque <= 0 ? 'border-red-200'
+        : i.estoque_minimo > 0 && i.total_estoque <= i.estoque_minimo ? 'border-orange-200'
+        : 'border-purple-100';
+      return `
+        <div class="card-insumo bg-white rounded-2xl shadow-sm border-2 ${borderColor} p-5 flex flex-col gap-3">
+          <div class="flex justify-between items-start gap-2">
+            <div class="flex-1 min-w-0">
+              <p class="font-black text-slate-800 text-sm leading-tight truncate">${i.nome}</p>
+              <p class="text-[10px] text-slate-400 font-mono mt-0.5">ID: ${i.id}</p>
+            </div>
+            ${statusBadge(i.total_estoque, i.estoque_minimo)}
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div class="bg-slate-50 rounded-xl p-2">
+              <p class="text-slate-400 font-bold uppercase text-[10px]">Estoque</p>
+              <p class="font-black text-slate-800">${Number(i.total_estoque || 0).toFixed(2)} <span class="font-normal text-slate-400">${i.unidade_base}</span></p>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-2">
+              <p class="text-slate-400 font-bold uppercase text-[10px]">Mínimo</p>
+              <p class="font-black text-slate-600">${i.estoque_minimo > 0 ? i.estoque_minimo + ' ' + i.unidade_base : '—'}</p>
+            </div>
+          </div>
+          <div class="text-xs">${validadeBadge(i.proxima_validade)}</div>
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="abrirFabricar(${i.id}, '${i.nome.replace(/'/g,"\\'")}', '${i.unidade_base}')" class="flex-1 px-3 py-2 bg-purple-600 text-white rounded-xl hover:bg-purple-700 text-xs font-bold text-center transition-all">🔧 Fabricar</button>
+            <button onclick="abrirReceita(${i.id}, '${i.nome.replace(/'/g,"\\'")}')}" class="px-3 py-2 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 text-xs font-bold transition-all">📋 Receita</button>
+            <button onclick="abrirLotes(${i.id}, '${i.nome.replace(/'/g,"\\'")}')}" class="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 text-xs font-bold transition-all">📦 Lotes</button>
+            <button onclick="abrirEditarInsumo(${JSON.stringify(i).replace(/"/g,'&quot;')})" class="p-2 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-100 text-xs transition-all">✏️</button>
+            <button onclick="deletarInsumo(${i.id})" class="p-2 bg-red-50 text-red-500 rounded-xl hover:bg-red-100 text-xs transition-all">🗑️</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ===== ALERTAS =====
+  function popularSelectAlertas() {
+    const sel = document.getElementById('alerta-select-insumo');
+    sel.innerHTML = '<option value="">-- Escolha um insumo --</option>';
+    todosInsumos.forEach(i => {
+      sel.innerHTML += `<option value="${i.id}" data-minimo="${i.estoque_minimo}">${i.nome} (${i.tipo}) — atual: ${Number(i.total_estoque || 0).toFixed(2)} ${i.unidade_base}</option>`;
+    });
+    sel.addEventListener('change', function() {
+      const opt = this.options[this.selectedIndex];
+      if (opt && opt.dataset.minimo !== undefined) {
+        document.getElementById('alerta-minimo').value = opt.dataset.minimo;
+      }
+    });
+  }
+
+  async function salvarAlertaInsumo() {
+    const insumoId = document.getElementById('alerta-select-insumo').value;
+    const minimo = parseFloat(document.getElementById('alerta-minimo').value);
+    if (!insumoId) return alert('Selecione um insumo.');
+    if (isNaN(minimo) || minimo < 0) return alert('Informe uma quantidade mínima válida.');
+    const insumo = todosInsumos.find(i => i.id == insumoId);
+    if (!insumo) return;
+    const res = await fetch(`/api/insumos/${insumoId}`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ nome: insumo.nome, unidade_base: insumo.unidade_base, estoque_minimo: minimo })
+    });
+    if (res.ok) {
+      alert(`✅ Alerta configurado! Aviso quando estoque de "${insumo.nome}" ficar abaixo de ${minimo} ${insumo.unidade_base}.`);
+      await carregarInsumos();
+      carregarAlertas();
+      popularSelectAlertas();
+    } else { alert('Erro ao salvar alerta.'); }
+  }
+
+  function renderizarAlertas(alertas) {
+    const container = document.getElementById('lista-alertas');
+    if (alertas.length === 0) {
+      container.innerHTML = `<div class="bg-white rounded-2xl p-10 text-center shadow-sm"><p class="text-4xl mb-3">✅</p><p class="font-black text-slate-700">Tudo em ordem! Nenhum alerta de estoque baixo.</p></div>`;
+      return;
+    }
+    container.innerHTML = alertas.map(a => {
+      const pct = a.estoque_minimo > 0 ? Math.min((a.total_estoque / a.estoque_minimo) * 100, 100) : 0;
+      const cor = a.total_estoque <= 0 ? 'bg-red-500' : 'bg-orange-400';
+      const bg = a.total_estoque <= 0 ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50';
+      return `
+        <div class="border ${bg} rounded-2xl p-5 flex items-center gap-4">
+          <div class="text-2xl">${a.total_estoque <= 0 ? '🔴' : '⚠️'}</div>
+          <div class="flex-1">
+            <div class="flex justify-between items-center mb-1">
+              <p class="font-black text-slate-800">${a.nome} <span class="text-xs font-normal text-slate-400">(${a.tipo})</span></p>
+              <p class="text-xs font-bold text-slate-600">${Number(a.total_estoque).toFixed(2)} / ${a.estoque_minimo} ${a.unidade_base}</p>
+            </div>
+            <div class="w-full bg-slate-200 rounded-full h-2">
+              <div class="${cor} h-2 rounded-full transition-all" style="width:${pct}%"></div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ===== MODAL: NOVO / EDITAR INSUMO =====
+  function abrirNovoInsumo(tipo) {
+    document.getElementById('insumo-edit-id').value = '';
+    document.getElementById('insumo-nome').value = '';
+    document.getElementById('insumo-unidade').value = 'g';
+    document.getElementById('insumo-minimo').value = '';
+    document.getElementById('insumo-validade-padrao').value = '';
+    document.getElementById('insumo-tipo-hidden').value = tipo;
+    document.getElementById('titulo-modal-insumo').innerText = tipo === 'fabricado' ? 'Novo Insumo Fabricado' : 'Novo Insumo Bruto';
+    document.getElementById('insumo-id-display').style.display = 'none';
+    abrirModal('modal-insumo');
+  }
+
+  function abrirEditarInsumo(i) {
+    document.getElementById('insumo-edit-id').value = i.id;
+    document.getElementById('insumo-nome').value = i.nome;
+    document.getElementById('insumo-unidade').value = i.unidade_base;
+    document.getElementById('insumo-minimo').value = i.estoque_minimo;
+    document.getElementById('insumo-validade-padrao').value = i.validade_padrao || '';
+    document.getElementById('insumo-tipo-hidden').value = i.tipo;
+    document.getElementById('titulo-modal-insumo').innerText = 'Editar Insumo';
+    document.getElementById('insumo-id-display').style.display = 'block';
+    document.getElementById('insumo-id-valor').innerText = i.id;
+    abrirModal('modal-insumo');
+  }
+
+  async function salvarInsumo() {
+    const id = document.getElementById('insumo-edit-id').value;
+    const payload = {
+      nome: document.getElementById('insumo-nome').value.trim(),
+      unidade_base: document.getElementById('insumo-unidade').value,
+      estoque_minimo: parseFloat(document.getElementById('insumo-minimo').value) || 0,
+      tipo: document.getElementById('insumo-tipo-hidden').value,
+      validade_padrao: document.getElementById('insumo-validade-padrao').value || null
+    };
+    if (!payload.nome) return alert('Informe o nome do insumo.');
+    const url = id ? `/api/insumos/${id}` : '/api/insumos';
+    const method = id ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (res.ok) { fecharModal('modal-insumo'); await carregarInsumos(); carregarAlertas(); popularSelectAlertas(); }
+    else alert('Erro ao salvar insumo.');
+  }
+
+  async function deletarInsumo(id) {
+    if (!confirm('Excluir este insumo? Todos os lotes serão removidos.')) return;
+    await fetch(`/api/insumos/${id}`, { method: 'DELETE' });
+    await carregarInsumos(); carregarAlertas();
+  }
+
+  // ===== MODAL: ENTRADA DE LOTE =====
+  function abrirEntrada(id, nome, unidade) {
+    document.getElementById('entrada-insumo-id').value = id;
+    document.getElementById('subtitulo-entrada').innerText = nome + ' (' + unidade + ')';
+    document.getElementById('entrada-qtd').value = '';
+    document.getElementById('entrada-fator').value = '1';
+    document.getElementById('entrada-validade').value = '';
+    document.getElementById('entrada-custo').value = '';
+    document.getElementById('preview-entrada').classList.add('hidden');
+    abrirModal('modal-entrada');
+  }
+
+  document.addEventListener('input', (e) => {
+    if (['entrada-qtd','entrada-fator'].includes(e.target.id)) {
+      const qtd = parseFloat(document.getElementById('entrada-qtd').value) || 0;
+      const fator = parseFloat(document.getElementById('entrada-fator').value) || 1;
+      const total = qtd * fator;
+      const prev = document.getElementById('preview-entrada');
+      if (qtd > 0) {
+        prev.classList.remove('hidden');
+        prev.innerText = `Total que entrará no estoque: ${total.toFixed(2)} unidades`;
+      } else { prev.classList.add('hidden'); }
+    }
+  });
+
+  async function confirmarEntrada() {
+    const id = document.getElementById('entrada-insumo-id').value;
+    const qtd = parseFloat(document.getElementById('entrada-qtd').value);
+    const fator = parseFloat(document.getElementById('entrada-fator').value) || 1;
+    const validade = document.getElementById('entrada-validade').value;
+    const custo = parseFloat(document.getElementById('entrada-custo').value) || 0;
+    if (!qtd || qtd <= 0) return alert('Informe a quantidade.');
+    if (!validade) return alert('Informe a data de validade do lote.');
+    const res = await fetch('/api/insumos/entrada', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ insumo_id: id, quantidade: qtd, fator_conversao: fator, validade, custo })
+    });
+    if (res.ok) { fecharModal('modal-entrada'); await carregarInsumos(); carregarAlertas(); alert('✅ Lote registrado com sucesso!'); }
+    else alert('Erro ao registrar entrada.');
+  }
+
+  // ===== MODAL: VER LOTES =====
+  async function abrirLotes(id, nome) {
+    document.getElementById('titulo-lotes').innerText = `Lotes: ${nome}`;
+    document.getElementById('conteudo-lotes').innerHTML = '<p class="text-slate-400 text-center py-4">Carregando...</p>';
+    abrirModal('modal-lotes');
+    const res = await fetch(`/api/insumos/${id}/lotes`);
+    const lotes = await res.json();
+    const c = document.getElementById('conteudo-lotes');
+    if (lotes.length === 0) { c.innerHTML = '<p class="text-slate-400 italic text-center py-4">Nenhum lote cadastrado.</p>'; return; }
+    c.innerHTML = `<table class="w-full text-sm border-collapse">
+      <thead><tr class="bg-slate-50 border-b">
+        <th class="p-3 text-left font-bold text-slate-600">Validade</th>
+        <th class="p-3 text-left font-bold text-slate-600">Inicial</th>
+        <th class="p-3 text-left font-bold text-slate-600">Atual</th>
+        <th class="p-3 text-left font-bold text-slate-600">Custo</th>
+        <th class="p-3 text-left font-bold text-slate-600">Status</th>
+      </tr></thead>
+      <tbody>
+        ${lotes.map(l => {
+          const statusLote = l.vencido ? '<span class="text-red-500 font-bold text-xs">Vencido</span>'
+            : l.vence_em_breve ? '<span class="text-orange-500 font-bold text-xs">Vence em breve</span>'
+            : '<span class="text-green-600 font-bold text-xs">Ok</span>';
+          return `<tr class="border-b border-slate-50 hover:bg-slate-50 ${l.vencido ? 'opacity-40' : ''}">
+            <td class="p-3 font-mono text-xs">${l.validade || '—'}</td>
+            <td class="p-3">${l.quantidade_inicial}</td>
+            <td class="p-3 font-bold">${Number(l.quantidade_atual).toFixed(2)}</td>
+            <td class="p-3 text-slate-400">${l.custo_lote ? 'R$ ' + Number(l.custo_lote).toFixed(2) : '—'}</td>
+            <td class="p-3">${statusLote}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+  }
+
+  // ===== MODAL: RECEITA =====
+  let brutosParaReceita = [];
+  async function abrirReceita(id, nome) {
+    document.getElementById('receita-fabricado-id').value = id;
+    document.getElementById('subtitulo-receita').innerText = nome;
+    document.getElementById('linhas-receita').innerHTML = '';
+    brutosParaReceita = todosInsumos.filter(i => i.tipo !== 'fabricado');
+    const res = await fetch(`/api/receitas/${id}`);
+    const receita = await res.json();
+    receita.forEach(r => adicionarLinhaReceita(r.insumo_bruto_id, r.quantidade));
+    if (receita.length === 0) adicionarLinhaReceita();
+    abrirModal('modal-receita');
+  }
+
+  function adicionarLinhaReceita(brutoId = '', qtd = '') {
+    const opts = brutosParaReceita.map(b => `<option value="${b.id}" ${b.id == brutoId ? 'selected' : ''}>${b.nome} (${b.unidade_base})</option>`).join('');
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-center';
+    div.innerHTML = `
+      <select class="flex-1 p-2.5 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-purple-500 bg-white receita-bruto">${opts}</select>
+      <input type="number" step="0.01" value="${qtd}" placeholder="Qtd" class="w-24 p-2.5 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-purple-500 receita-qtd">
+      <button onclick="this.parentElement.remove()" class="text-red-300 hover:text-red-500 font-bold text-lg px-1">×</button>
+    `;
+    document.getElementById('linhas-receita').appendChild(div);
+  }
+
+  async function salvarReceita() {
+    const id = document.getElementById('receita-fabricado-id').value;
+    const linhas = document.querySelectorAll('#linhas-receita > div');
+    const ingredientes = [];
+    for (const linha of linhas) {
+      const brutoId = linha.querySelector('.receita-bruto').value;
+      const qtd = parseFloat(linha.querySelector('.receita-qtd').value);
+      if (brutoId && qtd > 0) ingredientes.push({ insumo_bruto_id: parseInt(brutoId), quantidade: qtd });
+    }
+    if (ingredientes.length === 0) return alert('Adicione pelo menos um ingrediente.');
+    const res = await fetch(`/api/receitas/${id}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ ingredientes })
+    });
+    if (res.ok) { fecharModal('modal-receita'); alert('✅ Receita salva! Será usada automaticamente nas próximas fabricações.'); }
+    else alert('Erro ao salvar receita.');
+  }
+
+  // ===== MODAL: FABRICAR LOTE (MELHORADO) =====
+  let receitaAtual = [];
+  async function abrirFabricar(id, nome, unidade) {
+    document.getElementById('fabricar-insumo-id').value = id;
+    document.getElementById('subtitulo-fabricar').innerText = `${nome} (${unidade})`;
+    document.getElementById('fabricar-qtd').value = '';
+    document.getElementById('fabricar-validade').value = '';
+    document.getElementById('aviso-fabricar').classList.add('hidden');
+    document.getElementById('fabricar-salvar-template').checked = false;
+    const res = await fetch(`/api/receitas/${id}`);
+    receitaAtual = await res.json();
+    const prev = document.getElementById('preview-receita');
+    if (receitaAtual.length === 0) {
+      prev.innerHTML = `<p class="text-orange-600 font-bold text-center">⚠️ Nenhuma receita cadastrada para este insumo.<br><button onclick="fecharModal('modal-fabricar');abrirReceita(${id},'${nome}')" class="underline mt-2 inline-block">📋 Cadastrar receita agora</button></p>`;
+    } else {
+      prev.innerHTML = `
+        <p class="font-black text-slate-700 text-xs uppercase mb-2">📋 Receita (insumos por unidade produzida):</p>
+        <div class="space-y-1">
+          ${receitaAtual.map(r => `
+            <div class="flex justify-between items-center text-slate-600">
+              <span>• ${r.nome_bruto}</span>
+              <span class="font-black text-purple-700">${r.quantidade} ${r.unidade_base}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+    abrirModal('modal-fabricar');
+  }
+
+  function atualizarPreviewFabricar() {
+    const qtd = parseFloat(document.getElementById('fabricar-qtd').value) || 0;
+    const aviso = document.getElementById('aviso-fabricar');
+    if (qtd > 0 && receitaAtual.length > 0) {
+      aviso.classList.remove('hidden');
+      aviso.innerHTML = `
+        <p class="font-black mb-2 text-slate-700">Para produzir <span class="text-purple-700">${qtd} unidade(s)</span> serão consumidos:</p>
+        <div class="space-y-1">
+          ${receitaAtual.map(r => `
+            <div class="flex justify-between text-slate-600">
+              <span>• ${r.nome_bruto}</span>
+              <span class="font-bold">${(r.quantidade * qtd).toFixed(2)} ${r.unidade_base}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else { aviso.classList.add('hidden'); }
+  }
+
+  async function confirmarFabricar() {
+    const id = document.getElementById('fabricar-insumo-id').value;
+    const qtd = parseFloat(document.getElementById('fabricar-qtd').value);
+    const validade = document.getElementById('fabricar-validade').value;
+    if (!qtd || qtd <= 0) return alert('Informe a quantidade a produzir.');
+    if (!validade) return alert('Informe a data de validade do lote.');
+    const res = await fetch('/api/insumos/fabricar', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ insumo_fabricado_id: id, quantidade: qtd, validade })
+    });
+    const result = await res.json();
+    if (result.status === 'sucesso') {
+      fecharModal('modal-fabricar'); await carregarInsumos(); carregarAlertas();
+      alert('✅ ' + result.msg);
+    } else { alert('❌ ' + result.msg); }
+  }
+
+  // ===== VÍNCULOS PRODUTO → INSUMO =====
+  async function carregarVinculosProduto() {
+    const id = document.getElementById('select-produto-vinculo').value;
+    const area = document.getElementById('area-vinculos');
+    if (!id) { area.classList.add('hidden'); return; }
+    area.classList.remove('hidden');
+    document.getElementById('linhas-vinculos').innerHTML = '';
+    const res = await fetch(`/api/produto_insumos/${id}`);
+    const vinculos = await res.json();
+    vinculos.forEach(v => adicionarLinhaVinculo(v.insumo_id, v.quantidade));
+    if (vinculos.length === 0) adicionarLinhaVinculo();
+  }
+
+  function adicionarLinhaVinculo(insumoId = '', qtd = '') {
+    const opts = todosInsumos.map(i => `<option value="${i.id}" ${i.id == insumoId ? 'selected' : ''}>${i.nome} (${i.unidade_base}) — ${i.tipo}</option>`).join('');
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-center';
+    div.innerHTML = `
+      <select class="flex-1 p-2.5 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-blue-500 bg-white vinculo-insumo">${opts}</select>
+      <input type="number" step="0.001" value="${qtd}" placeholder="Qtd consumida" class="w-32 p-2.5 border border-slate-200 rounded-xl font-bold text-sm outline-none focus:border-blue-500 vinculo-qtd">
+      <button onclick="this.parentElement.remove()" class="text-red-300 hover:text-red-500 font-bold text-lg px-1">×</button>
+    `;
+    document.getElementById('linhas-vinculos').appendChild(div);
+  }
+
+  async function salvarVinculos() {
+    const produtoId = document.getElementById('select-produto-vinculo').value;
+    if (!produtoId) return;
+    const linhas = document.querySelectorAll('#linhas-vinculos > div');
+    const insumos = [];
+    for (const linha of linhas) {
+      const insumoId = linha.querySelector('.vinculo-insumo').value;
+      const qtd = parseFloat(linha.querySelector('.vinculo-qtd').value);
+      if (insumoId && qtd > 0) insumos.push({ insumo_id: parseInt(insumoId), quantidade: qtd });
+    }
+    const res = await fetch(`/api/produto_insumos/${produtoId}`, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ insumos })
+    });
+    if (res.ok) alert('✅ Vínculos salvos! O estoque será descontado automaticamente nas vendas.');
+    else alert('Erro ao salvar vínculos.');
+  }
+
+  // ===== UTILITÁRIOS =====
+  function abrirModal(id) { document.getElementById(id).classList.remove('hidden'); }
+  function fecharModal(id) { document.getElementById(id).classList.add('hidden'); }
+</script>
+{% endblock %}

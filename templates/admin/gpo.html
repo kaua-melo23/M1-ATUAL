@@ -1,0 +1,500 @@
+{% extends "admin/base.html" %}
+{% block title %}GPO — Usuários & Grupos{% endblock %}
+{% block content %}
+<style>
+    .gpo-tab { transition: all .15s; }
+    .gpo-tab.ativo { background: #2563eb; color: #fff; border-color: #2563eb; }
+    .gpo-badge { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 20px; }
+    .perm-chip { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; display: inline-block; margin: 2px; }
+    .perm-chip.checked { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+    input[type=text], input[type=password], select, textarea { 
+        width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; 
+        font-size: 13px; font-weight: 600; color: #1e293b; background: #f8fafc; 
+        outline: none; transition: border-color .15s; font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #2563eb; background: #fff; }
+    .table-row { border-bottom: 1px solid #f1f5f9; }
+    .table-row:hover { background: #f8fafc; }
+    .role-badge { font-size: 10px; font-weight: 800; padding: 3px 9px; border-radius: 20px; text-transform: uppercase; }
+    .role-admin { background: #fef3c7; color: #92400e; }
+    .role-atendente { background: #dbeafe; color: #1e40af; }
+    .role-cozinha { background: #d1fae5; color: #065f46; }
+    .role-caixa { background: #fae8ff; color: #6b21a8; }
+    .role-entregador { background: #ffedd5; color: #9a3412; }
+</style>
+
+<!-- CABEÇALHO -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+    <div>
+        <h2 class="text-3xl font-black text-slate-800 italic uppercase tracking-tighter">GPO — Controle de Acesso</h2>
+        <p class="text-slate-500 text-sm font-bold uppercase tracking-widest">Usuários · Grupos · Políticas</p>
+    </div>
+    <div id="btn-novo-container">
+        <!-- preenchido por JS -->
+    </div>
+</div>
+
+<!-- TABS -->
+<div class="flex gap-2 mb-6">
+    <button class="gpo-tab ativo px-5 py-2 rounded-xl border border-slate-200 text-sm font-bold" onclick="mudarTab('usuarios', this)">👤 Usuários</button>
+    <button class="gpo-tab px-5 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600" onclick="mudarTab('grupos', this)">🏷️ Grupos</button>
+    <button class="gpo-tab px-5 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600" onclick="mudarTab('politicas', this)">📋 Políticas</button>
+</div>
+
+<!-- ══════════════════════════════════════ USUÁRIOS ══════════════════════════════════════ -->
+<div id="tab-usuarios">
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <span class="text-xs font-black text-slate-400 uppercase tracking-widest">Lista de Usuários</span>
+            <span id="usuarios-count" class="gpo-badge bg-blue-50 text-blue-600">0</span>
+        </div>
+        <div id="tabela-usuarios" class="divide-y divide-slate-50">
+            <div class="p-8 text-center text-slate-400 text-sm">Carregando...</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════ GRUPOS ══════════════════════════════════════ -->
+<div id="tab-grupos" class="hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <span class="text-xs font-black text-slate-400 uppercase tracking-widest">Grupos de Acesso</span>
+            <span id="grupos-count" class="gpo-badge bg-purple-50 text-purple-600">0</span>
+        </div>
+        <div id="tabela-grupos" class="divide-y divide-slate-50">
+            <div class="p-8 text-center text-slate-400 text-sm">Carregando...</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════ POLÍTICAS ══════════════════════════════════════ -->
+<div id="tab-politicas" class="hidden">
+    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <span class="text-xs font-black text-slate-400 uppercase tracking-widest">Políticas de Permissão</span>
+            <span id="politicas-count" class="gpo-badge bg-green-50 text-green-600">0</span>
+        </div>
+        <div id="tabela-politicas" class="divide-y divide-slate-50">
+            <div class="p-8 text-center text-slate-400 text-sm">Carregando...</div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════ MODAL ══════════════════════════════════════ -->
+<div id="modal-overlay" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+    <div id="modal-box" class="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+            <h3 id="modal-titulo" class="text-lg font-black text-slate-800"></h3>
+            <button onclick="fecharModal()" class="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+        </div>
+        <div id="modal-form" class="p-6 space-y-4"></div>
+        <div class="px-6 pb-6 flex gap-3">
+            <button id="modal-salvar" onclick="salvarModal()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-sm transition-colors">Salvar</button>
+            <button onclick="fecharModal()" class="px-5 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ── ESTADO ──────────────────────────────────────────────────────
+let tabAtual = 'usuarios';
+let meta = { roles: [], permissoes: {}, permissoes_paginas: {}, permissoes_operacoes: {} };
+let dadosCache = { usuarios: [], grupos: [], politicas: [] };
+let modalCallback = null;
+
+// ── TABS ─────────────────────────────────────────────────────────
+function mudarTab(tab, el) {
+    tabAtual = tab;
+    document.querySelectorAll('.gpo-tab').forEach(b => b.classList.remove('ativo'));
+    el.classList.add('ativo');
+    ['usuarios','grupos','politicas'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+    });
+    atualizarBtnNovo();
+}
+
+function atualizarBtnNovo() {
+    const c = document.getElementById('btn-novo-container');
+    const labels = { usuarios: '+ Novo Usuário', grupos: '+ Novo Grupo', politicas: '+ Nova Política' };
+    const colors = { usuarios: 'bg-blue-600 hover:bg-blue-700', grupos: 'bg-purple-600 hover:bg-purple-700', politicas: 'bg-green-600 hover:bg-green-700' };
+    c.innerHTML = `<button onclick="abrirModalNovo('${tabAtual}')" 
+        class="${colors[tabAtual]} text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-colors">
+        ${labels[tabAtual]}
+    </button>`;
+}
+
+// ── CARREGAR META ─────────────────────────────────────────────────
+async function carregarMeta() {
+    const r = await fetch('/api/gpo/meta');
+    meta = await r.json();
+}
+
+// ── USUÁRIOS ─────────────────────────────────────────────────────
+async function carregarUsuarios() {
+    const r = await fetch('/api/gpo/usuarios');
+    dadosCache.usuarios = await r.json();
+    document.getElementById('usuarios-count').textContent = dadosCache.usuarios.length;
+    
+    const div = document.getElementById('tabela-usuarios');
+    if (!dadosCache.usuarios.length) {
+        div.innerHTML = '<div class="p-8 text-center text-slate-400 text-sm font-bold">Nenhum usuário cadastrado</div>';
+        return;
+    }
+    div.innerHTML = dadosCache.usuarios.map(u => `
+        <div class="table-row flex items-center gap-4 px-6 py-4">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm ${u.ativo ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}">
+                ${(u.nome||'?')[0].toUpperCase()}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-slate-800 text-sm">${u.nome} ${u.ativo ? '' : '<span class="text-xs font-bold text-slate-400">(inativo)</span>'}</div>
+                <div class="text-xs font-bold text-slate-400">@${u.username}${u.grupo_nome ? ' · ' + u.grupo_nome : ''}</div>
+            </div>
+            <span class="role-badge role-${u.role}">${u.role}</span>
+            <div class="flex gap-2">
+                <button onclick="abrirModalEditar('usuarios', ${u.id})" 
+                    class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                    ✏️ Editar
+                </button>
+                <button onclick="confirmarExcluir('usuarios', ${u.id}, '${u.nome}')" 
+                    class="px-3 py-1.5 border border-red-200 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 transition-colors">
+                    🗑️
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── GRUPOS ────────────────────────────────────────────────────────
+async function carregarGrupos() {
+    const r = await fetch('/api/gpo/grupos');
+    dadosCache.grupos = await r.json();
+    document.getElementById('grupos-count').textContent = dadosCache.grupos.length;
+    
+    const div = document.getElementById('tabela-grupos');
+    if (!dadosCache.grupos.length) {
+        div.innerHTML = '<div class="p-8 text-center text-slate-400 text-sm font-bold">Nenhum grupo cadastrado</div>';
+        return;
+    }
+    div.innerHTML = dadosCache.grupos.map(g => `
+        <div class="table-row flex items-center gap-4 px-6 py-4">
+            <div class="w-9 h-9 rounded-full bg-purple-100 flex items-center justify-center font-black text-sm text-purple-600">
+                ${(g.nome||'?')[0].toUpperCase()}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-slate-800 text-sm">${g.nome}</div>
+                <div class="text-xs text-slate-400 font-bold">${g.descricao || 'Sem descrição'}</div>
+                <div class="mt-1 flex flex-wrap gap-1">
+                    ${(g.politicas_nomes||[]).map(p => `<span class="perm-chip">${p}</span>`).join('')}
+                </div>
+            </div>
+            <div class="text-center">
+                <div class="text-lg font-black text-slate-700">${g.total_usuarios||0}</div>
+                <div class="text-[9px] font-bold text-slate-400 uppercase">usuários</div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="abrirModalEditar('grupos', ${g.id})" 
+                    class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                    ✏️ Editar
+                </button>
+                <button onclick="confirmarExcluir('grupos', ${g.id}, '${g.nome}')" 
+                    class="px-3 py-1.5 border border-red-200 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 transition-colors">
+                    🗑️
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── POLÍTICAS ─────────────────────────────────────────────────────
+async function carregarPoliticas() {
+    const r = await fetch('/api/gpo/politicas');
+    dadosCache.politicas = await r.json();
+    document.getElementById('politicas-count').textContent = dadosCache.politicas.length;
+    
+    const div = document.getElementById('tabela-politicas');
+    if (!dadosCache.politicas.length) {
+        div.innerHTML = '<div class="p-8 text-center text-slate-400 text-sm font-bold">Nenhuma política cadastrada</div>';
+        return;
+    }
+    div.innerHTML = dadosCache.politicas.map(p => `
+        <div class="table-row flex items-center gap-4 px-6 py-4">
+            <div class="w-9 h-9 rounded-full bg-green-100 flex items-center justify-center text-lg">📋</div>
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-slate-800 text-sm">${p.nome}</div>
+                <div class="text-xs text-slate-400 font-bold mb-1">${p.descricao || ''}</div>
+                <div class="flex flex-wrap">
+                    ${(p.permissoes||[]).map(perm => `<span class="perm-chip checked">${meta.permissoes[perm] || perm}</span>`).join('')}
+                </div>
+            </div>
+            <div class="text-center">
+                <div class="text-lg font-black text-slate-700">${p.grupos_aplicados||0}</div>
+                <div class="text-[9px] font-bold text-slate-400 uppercase">grupos</div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="abrirModalEditar('politicas', ${p.id})" 
+                    class="px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
+                    ✏️ Editar
+                </button>
+                <button onclick="confirmarExcluir('politicas', ${p.id}, '${p.nome}')" 
+                    class="px-3 py-1.5 border border-red-200 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 transition-colors">
+                    🗑️
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ── MODAL: NOVO ───────────────────────────────────────────────────
+function abrirModalNovo(tipo) {
+    document.getElementById('modal-titulo').textContent = {
+        usuarios: '👤 Novo Usuário',
+        grupos: '🏷️ Novo Grupo',
+        politicas: '📋 Nova Política'
+    }[tipo];
+    
+    document.getElementById('modal-form').innerHTML = buildForm(tipo, null);
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    modalCallback = async (dados) => {
+        const r = await fetch('/api/gpo/' + tipo, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+        return await r.json();
+    };
+}
+
+function abrirModalEditar(tipo, id) {
+    const item = dadosCache[tipo].find(x => x.id == id);
+    if (!item) return;
+    document.getElementById('modal-titulo').textContent = {
+        usuarios: '✏️ Editar Usuário',
+        grupos: '✏️ Editar Grupo',
+        politicas: '✏️ Editar Política'
+    }[tipo];
+    
+    document.getElementById('modal-form').innerHTML = buildForm(tipo, item);
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    modalCallback = async (dados) => {
+        const r = await fetch('/api/gpo/' + tipo + '/' + id, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+        return await r.json();
+    };
+}
+
+function buildForm(tipo, item) {
+    if (tipo === 'usuarios') {
+        const gruposOpts = dadosCache.grupos.map(g => 
+            `<option value="${g.id}" ${item && item.grupo_id == g.id ? 'selected' : ''}>${g.nome}</option>`
+        ).join('');
+        const rolesOpts = (meta.roles||['admin','atendente','cozinha','caixa','entregador']).map(r =>
+            `<option value="${r}" ${item && item.role == r ? 'selected' : ''}>${r}</option>`
+        ).join('');
+        return `
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Nome Completo *</label>
+                <input id="f-nome" type="text" placeholder="Ex: João Silva" value="${item ? item.nome : ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Username *</label>
+                <input id="f-username" type="text" placeholder="Ex: joao.silva" value="${item ? item.username : ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Senha ${item ? '(deixe vazio para manter)' : '*'}</label>
+                <input id="f-senha" type="password" placeholder="${item ? '••••••••' : 'Mínimo 4 caracteres'}">
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                    <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Função</label>
+                    <select id="f-role">${rolesOpts}</select>
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Grupo</label>
+                    <select id="f-grupo"><option value="">Sem grupo</option>${gruposOpts}</select>
+                </div>
+            </div>
+            ${item ? `
+            <div>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <input id="f-ativo" type="checkbox" class="w-4 h-4" ${item.ativo ? 'checked' : ''}>
+                    <span class="text-sm font-bold text-slate-700">Usuário ativo</span>
+                </label>
+            </div>` : ''}
+        `;
+    }
+    
+    if (tipo === 'grupos') {
+        const politicasChecks = dadosCache.politicas.map(p =>
+            `<label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-50">
+                <input type="checkbox" value="${p.id}" class="f-politica w-4 h-4" ${item && (item.politicas_ids||[]).includes(p.id) ? 'checked' : ''}>
+                <div>
+                    <div class="text-sm font-bold text-slate-700">${p.nome}</div>
+                    <div class="text-xs text-slate-400">${p.descricao}</div>
+                </div>
+            </label>`
+        ).join('');
+        return `
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Nome do Grupo *</label>
+                <input id="f-nome" type="text" placeholder="Ex: Atendentes Turno A" value="${item ? item.nome : ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Descrição</label>
+                <input id="f-descricao" type="text" placeholder="Descrição opcional" value="${item ? item.descricao : ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Políticas Aplicadas</label>
+                <div class="border border-slate-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                    ${politicasChecks || '<div class="p-4 text-sm text-slate-400 text-center">Nenhuma política criada ainda</div>'}
+                </div>
+            </div>
+        `;
+    }
+    
+    if (tipo === 'politicas') {
+        const checked = item ? (item.permissoes||[]) : [];
+
+        const buildGroup = (titulo, emoji, permsObj) => {
+            const checks = Object.entries(permsObj||{}).map(([key, label]) => {
+                const isChecked = checked.includes(key) ? 'checked' : '';
+                // Remove prefixo "Página: " ou "Op: " do label para exibição
+                const displayLabel = label.replace(/^(Página|Op): /, '');
+                return `<label class="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-50">
+                    <input type="checkbox" value="${key}" class="f-perm w-4 h-4" ${isChecked}>
+                    <div>
+                        <div class="text-sm font-bold text-slate-700">${displayLabel}</div>
+                        <div class="text-xs font-mono text-slate-400">${key}</div>
+                    </div>
+                </label>`;
+            }).join('');
+            return `
+                <div class="mb-3">
+                    <div class="flex items-center gap-2 px-2 py-1.5 bg-slate-100 rounded-lg mb-1">
+                        <span class="text-base">${emoji}</span>
+                        <span class="text-xs font-black text-slate-600 uppercase tracking-widest">${titulo}</span>
+                        <button type="button" class="ml-auto text-xs text-blue-500 font-bold hover:underline"
+                            onclick="toggleGroup(this, '${titulo}')">Marcar todos</button>
+                    </div>
+                    <div class="divide-y divide-slate-50">${checks}</div>
+                </div>`;
+        };
+
+        const secPaginas   = buildGroup('Páginas', '🗂️', meta.permissoes_paginas);
+        const secOperacoes = buildGroup('Operações', '⚙️', meta.permissoes_operacoes);
+
+        return `
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Nome da Política *</label>
+                <input id="f-nome" type="text" placeholder="Ex: Permissões do Atendente" value="${item ? item.nome : ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">Descrição</label>
+                <input id="f-descricao" type="text" placeholder="Descrição opcional" value="${item ? item.descricao : ''}">
+            </div>
+            <div>
+                <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">Permissões</label>
+                <div class="border border-slate-200 rounded-xl overflow-hidden max-h-72 overflow-y-auto p-2 space-y-1">
+                    ${secPaginas}
+                    ${secOperacoes}
+                </div>
+            </div>
+        `;
+    }
+    return '';
+}
+
+async function salvarModal() {
+    let dados = {};
+    
+    if (tabAtual === 'usuarios') {
+        dados = {
+            nome: document.getElementById('f-nome')?.value?.trim(),
+            username: document.getElementById('f-username')?.value?.trim(),
+            senha: document.getElementById('f-senha')?.value || '',
+            role: document.getElementById('f-role')?.value,
+            grupo_id: document.getElementById('f-grupo')?.value || null,
+            ativo: document.getElementById('f-ativo')?.checked ?? 1,
+        };
+        if (!dados.nome || !dados.username) { alert('Nome e username são obrigatórios'); return; }
+    }
+    
+    if (tabAtual === 'grupos') {
+        dados = {
+            nome: document.getElementById('f-nome')?.value?.trim(),
+            descricao: document.getElementById('f-descricao')?.value?.trim() || '',
+            politicas_ids: [...document.querySelectorAll('.f-politica:checked')].map(c => parseInt(c.value)),
+        };
+        if (!dados.nome) { alert('Nome do grupo é obrigatório'); return; }
+    }
+    
+    if (tabAtual === 'politicas') {
+        dados = {
+            nome: document.getElementById('f-nome')?.value?.trim(),
+            descricao: document.getElementById('f-descricao')?.value?.trim() || '',
+            permissoes: [...document.querySelectorAll('.f-perm:checked')].map(c => c.value),
+        };
+        if (!dados.nome) { alert('Nome da política é obrigatório'); return; }
+    }
+    
+    const btn = document.getElementById('modal-salvar');
+    btn.textContent = 'Salvando...';
+    btn.disabled = true;
+    
+    try {
+        const result = await modalCallback(dados);
+        if (result.ok) {
+            fecharModal();
+            recarregarTudo();
+        } else {
+            alert('Erro: ' + (result.erro || 'Tente novamente'));
+        }
+    } catch(e) {
+        alert('Erro de conexão');
+    }
+    
+    btn.textContent = 'Salvar';
+    btn.disabled = false;
+}
+
+function fecharModal() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    modalCallback = null;
+}
+
+async function confirmarExcluir(tipo, id, nome) {
+    if (!confirm(`Excluir "${nome}"? Esta ação não pode ser desfeita.`)) return;
+    await fetch('/api/gpo/' + tipo + '/' + id, { method: 'DELETE' });
+    recarregarTudo();
+}
+
+function recarregarTudo() {
+    carregarUsuarios();
+    carregarGrupos();
+    carregarPoliticas();
+}
+
+// ── TOGGLE GROUP ─────────────────────────────────────────────────
+function toggleGroup(btn, titulo) {
+    // Encontra todos os checkboxes dentro do grupo pai do botão
+    const grupo = btn.closest('.mb-3');
+    const checks = grupo.querySelectorAll('input[type=checkbox]');
+    const todosChecados = [...checks].every(c => c.checked);
+    checks.forEach(c => c.checked = !todosChecados);
+    btn.textContent = todosChecados ? 'Marcar todos' : 'Desmarcar todos';
+}
+
+document.getElementById('modal-overlay').onclick = function(e) {
+    if (e.target === this) fecharModal();
+};
+
+// ── INIT ──────────────────────────────────────────────────────────
+(async () => {
+    await carregarMeta();
+    recarregarTudo();
+    atualizarBtnNovo();
+})();
+</script>
+{% endblock %}

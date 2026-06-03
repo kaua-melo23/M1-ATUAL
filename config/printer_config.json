@@ -1,0 +1,12 @@
+{
+  "tipo": "windows",
+  "modo": "aceito",
+  "nome_windows": "OneNote (Desktop)",
+  "vendor_id": "",
+  "product_id": "",
+  "ip": "",
+  "porta": 9100,
+  "com": "",
+  "baudrate": 9600,
+  "cortar_papel": false
+}

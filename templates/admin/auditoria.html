@@ -1,0 +1,184 @@
+{% extends "admin/base.html" %}
+{% block title %}Auditoria{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-black text-slate-800 flex items-center gap-3">
+                🔍 <span>Auditoria do Sistema</span>
+            </h1>
+            <p class="text-slate-500 text-sm mt-1">Registro de todas as ações críticas. Acesso exclusivo do administrador.</p>
+        </div>
+        <button onclick="exportarCSV()" class="flex items-center gap-2 px-4 py-2 border border-slate-300 rounded-xl text-slate-600 hover:bg-slate-50 transition text-sm font-semibold">
+            ⬇️ Exportar CSV
+        </button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white rounded-2xl shadow-sm border p-5">
+        <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Filtros</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Data Início</label>
+                <input type="date" id="f-inicio" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Data Fim</label>
+                <input type="date" id="f-fim" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Usuário</label>
+                <select id="f-usuario" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none bg-white">
+                    <option value="">Todos</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">Ação (busca livre)</label>
+                <input type="text" id="f-acao" placeholder="ex: produto, estoque..." class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 outline-none">
+            </div>
+        </div>
+        <div class="flex gap-3 mt-4">
+            <button onclick="carregar()" class="bg-slate-800 text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-blue-600 transition">Filtrar</button>
+            <button onclick="limparFiltros()" class="border border-slate-200 text-slate-500 px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-50 transition">Limpar</button>
+        </div>
+    </div>
+
+    <!-- Contador -->
+    <div class="flex items-center justify-between px-1">
+        <p class="text-sm text-slate-500">Exibindo <span id="total-eventos" class="font-bold text-slate-800">0</span> eventos</p>
+    </div>
+
+    <!-- Tabela -->
+    <div class="bg-white rounded-2xl shadow-sm border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-xs font-black text-slate-500 uppercase tracking-widest">
+                    <tr>
+                        <th class="px-5 py-3 text-left">Data/Hora</th>
+                        <th class="px-5 py-3 text-left">Usuário</th>
+                        <th class="px-5 py-3 text-left">Role</th>
+                        <th class="px-5 py-3 text-left">Ação</th>
+                        <th class="px-5 py-3 text-left">Detalhes</th>
+                    </tr>
+                </thead>
+                <tbody id="tabela-auditoria" class="divide-y divide-slate-50">
+                    <tr><td colspan="5" class="px-5 py-10 text-center text-slate-400">Carregando...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _dados = [];
+
+const ACOES_ICON = {
+    criou_produto:         "🆕", editou_produto:         "✏️",
+    editou_preco_produto:  "💰", deletou_produto:        "🗑️",
+    criou_insumo:          "📦", deletou_insumo:         "🗑️",
+    entrada_estoque:       "📥", fabricou_lote:          "🏭",
+    criou_categoria:       "🏷️", deletou_categoria:      "🗑️",
+    editou_configuracoes:  "⚙️", salvou_taxa_entrega:   "📍",
+    deletou_taxa_entrega:  "🗑️", deletou_pedido:        "🗑️",
+    alterou_status_pedido: "🔄", atualizou_insumos_produto: "🔗",
+};
+
+const BADGE_ROLE = {
+    admin:    "bg-red-100 text-red-700",
+    gerente:  "bg-purple-100 text-purple-700",
+    operador: "bg-blue-100 text-blue-700",
+};
+
+async function carregar() {
+    const params = new URLSearchParams({
+        dt_inicio: document.getElementById("f-inicio").value,
+        dt_fim:    document.getElementById("f-fim").value,
+        usuario:   document.getElementById("f-usuario").value,
+        acao:      document.getElementById("f-acao").value,
+        limite:    200,
+    });
+    const res = await fetch("/api/auditoria?" + params);
+    const data = await res.json();
+    _dados = data.eventos || [];
+
+    // Preenche select de usuários
+    const sel = document.getElementById("f-usuario");
+    const valorAtual = sel.value;
+    sel.innerHTML = '<option value="">Todos</option>';
+    (data.usuarios || []).forEach(u => {
+        const opt = document.createElement("option");
+        opt.value = u; opt.textContent = u;
+        if (u === valorAtual) opt.selected = true;
+        sel.appendChild(opt);
+    });
+
+    renderizar(_dados);
+}
+
+function renderizar(eventos) {
+    document.getElementById("total-eventos").textContent = eventos.length;
+    const tbody = document.getElementById("tabela-auditoria");
+    if (!eventos.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-5 py-10 text-center text-slate-400">Nenhum evento encontrado.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = eventos.map(e => {
+        const icon = ACOES_ICON[e.acao] || "📋";
+        const badgeClass = BADGE_ROLE[e.role] || "bg-slate-100 text-slate-600";
+        const dt = new Date(e.data_hora.replace(" ", "T") + "-03:00");
+        const dtFmt = isNaN(dt) ? e.data_hora : dt.toLocaleString("pt-BR", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit", second: "2-digit"
+        });
+
+        let detalhes = e.detalhes || "";
+        try {
+            const obj = JSON.parse(detalhes);
+            detalhes = Object.entries(obj).map(([k,v]) => `<span class="text-slate-400">${k}:</span> <span class="font-semibold">${v}</span>`).join(" · ");
+        } catch(_) {
+            detalhes = `<span class="text-slate-600">${detalhes}</span>`;
+        }
+
+        return `<tr class="hover:bg-slate-50 transition-colors">
+            <td class="px-5 py-3 text-slate-500 whitespace-nowrap font-mono text-xs">${dtFmt}</td>
+            <td class="px-5 py-3 font-bold text-slate-800">${e.usuario}</td>
+            <td class="px-5 py-3">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${badgeClass}">${e.role || "—"}</span>
+            </td>
+            <td class="px-5 py-3">
+                <span class="flex items-center gap-1.5 font-semibold text-slate-700">
+                    <span>${icon}</span> ${e.acao}
+                </span>
+            </td>
+            <td class="px-5 py-3 text-xs text-slate-500 max-w-xs truncate">${detalhes}</td>
+        </tr>`;
+    }).join("");
+}
+
+function limparFiltros() {
+    ["f-inicio","f-fim","f-acao"].forEach(id => document.getElementById(id).value = "");
+    document.getElementById("f-usuario").value = "";
+    carregar();
+}
+
+function exportarCSV() {
+    if (!_dados.length) return alert("Nenhum dado para exportar.");
+    const linhas = [["ID","Data/Hora","Usuário","Role","Ação","Detalhes"]];
+    _dados.forEach(e => linhas.push([e.id, e.data_hora, e.usuario, e.role, e.acao, (e.detalhes||"").replace(/,/g," ")]));
+    const csv = linhas.map(l => l.join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `auditoria_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+}
+
+carregar();
+</script>
+{% endblock %}

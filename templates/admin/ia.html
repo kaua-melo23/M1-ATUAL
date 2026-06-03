@@ -1,0 +1,619 @@
+{% extends "admin/base.html" %}
+{% block title %}IA / Inteligência do Negócio{% endblock %}
+
+{% block content %}
+
+{% if acesso_negado %}
+<!-- ── Acesso negado ─────────────────────────────────────────────── -->
+<div class="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
+    <div class="text-6xl">🔒</div>
+    <h2 class="text-2xl font-bold text-gray-700">Acesso Restrito</h2>
+    <p class="text-gray-500 max-w-sm">Esta seção é exclusiva para <strong>Admin</strong> e <strong>Gerente</strong>.</p>
+    <a href="/admin" class="mt-2 px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition">
+        Voltar ao Dashboard
+    </a>
+</div>
+
+{% else %}
+<!-- ── Conteúdo principal ─────────────────────────────────────────── -->
+
+<!-- Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+        <h1 class="text-3xl font-black text-gray-800 flex items-center gap-3">
+            🤖 <span>Inteligência do Negócio</span>
+        </h1>
+        <p class="text-gray-500 mt-1">Análise de vendas, estoque e custos com IA. Apenas sugestões — nenhuma alteração automática.</p>
+    </div>
+    <div class="flex gap-3">
+        <button onclick="abrirConfiguracoes()"
+            class="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 transition text-sm font-medium">
+            ⚙️ Configurar Chave
+        </button>
+        <button id="btn-analisar" onclick="executarAnalise()"
+            class="flex items-center gap-2 px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:scale-95 transition font-bold shadow">
+            ✨ Analisar Agora
+        </button>
+    </div>
+</div>
+
+<!-- Filtros de análise -->
+<div class="bg-white rounded-2xl shadow-sm border p-4 mb-6 flex flex-wrap gap-4 items-center">
+    <div>
+        <label class="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1">Tipo de Análise</label>
+        <select id="tipo-analise" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-400 outline-none">
+            <option value="completa">📊 Análise Completa</option>
+            <option value="estoque">📦 Foco em Estoque</option>
+            <option value="vendas">💰 Foco em Vendas</option>
+            <option value="custos">📉 Foco em Custos</option>
+        </select>
+    </div>
+    <div>
+        <label class="text-xs text-gray-500 font-semibold uppercase tracking-wide block mb-1">Período de Vendas</label>
+        <select id="dias-vendas" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-blue-400 outline-none">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="60">Últimos 60 dias</option>
+            <option value="90">Últimos 90 dias</option>
+        </select>
+    </div>
+    <div class="ml-auto text-xs text-gray-400 italic">
+        ℹ️ A IA não altera dados — apenas sugere ações
+    </div>
+</div>
+
+<!-- Estado: vazio (inicial) -->
+<div id="estado-inicial" class="bg-white rounded-2xl shadow-sm border p-12 text-center">
+    <div class="text-5xl mb-4">🧠</div>
+    <h3 class="text-xl font-bold text-gray-700 mb-2">Pronto para Analisar</h3>
+    <p class="text-gray-400 max-w-md mx-auto">Clique em <strong>"Analisar Agora"</strong> para que a IA colete os dados do sistema e gere insights sobre vendas, estoque e custos.</p>
+</div>
+
+<!-- Estado: carregando -->
+<div id="estado-carregando" class="hidden bg-white rounded-2xl shadow-sm border p-12 text-center">
+    <div class="text-5xl mb-4 animate-bounce">🤖</div>
+    <h3 class="text-xl font-bold text-gray-700 mb-2">Analisando seu negócio...</h3>
+    <div class="max-w-xs mx-auto mt-4">
+        <div class="w-full bg-gray-100 rounded-full h-2">
+            <div id="barra-progresso" class="bg-blue-500 h-2 rounded-full transition-all duration-500" style="width: 10%"></div>
+        </div>
+        <p id="msg-progresso" class="text-gray-400 text-sm mt-2">Coletando dados do sistema...</p>
+    </div>
+</div>
+
+<!-- Estado: erro -->
+<div id="estado-erro" class="hidden bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
+    <div class="text-4xl mb-3">⚠️</div>
+    <h3 class="text-xl font-bold text-red-700 mb-2">Falha na Análise</h3>
+    <p id="msg-erro" class="text-red-500 max-w-lg mx-auto text-sm"></p>
+    <button onclick="executarAnalise()" class="mt-4 px-5 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition text-sm font-bold">
+        Tentar Novamente
+    </button>
+</div>
+
+<!-- Estado: resultado -->
+<div id="estado-resultado" class="hidden space-y-6">
+
+    <!-- Score de Saúde + Resumo -->
+    <div class="bg-white rounded-2xl shadow-sm border p-6">
+        <div class="flex flex-col md:flex-row md:items-center gap-6">
+            <!-- Score -->
+            <div class="flex flex-col items-center min-w-[120px]">
+                <div id="score-circulo" class="relative w-24 h-24">
+                    <svg class="w-24 h-24 -rotate-90" viewBox="0 0 36 36">
+                        <circle cx="18" cy="18" r="15.9" fill="none" stroke="#e5e7eb" stroke-width="3"/>
+                        <circle id="score-arco" cx="18" cy="18" r="15.9" fill="none"
+                            stroke="#3b82f6" stroke-width="3"
+                            stroke-dasharray="0 100" stroke-linecap="round"
+                            style="transition: stroke-dasharray 1.5s ease"/>
+                    </svg>
+                    <span id="score-valor" class="absolute inset-0 flex items-center justify-center text-2xl font-black text-gray-800">—</span>
+                </div>
+                <span class="text-xs text-gray-500 mt-1 font-semibold">Saúde do Negócio</span>
+            </div>
+            <!-- Resumo -->
+            <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-lg">📋</span>
+                    <h3 class="font-bold text-gray-700">Resumo Executivo</h3>
+                    <span id="badge-analise" class="ml-auto text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium"></span>
+                </div>
+                <p id="texto-resumo" class="text-gray-600 leading-relaxed"></p>
+                <p id="texto-data-analise" class="text-xs text-gray-400 mt-2"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grid: Problemas + Oportunidades -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Problemas -->
+        <div class="bg-white rounded-2xl shadow-sm border">
+            <div class="p-4 border-b flex items-center gap-2">
+                <span class="text-xl">🚨</span>
+                <h3 class="font-bold text-gray-800">Problemas Identificados</h3>
+                <span id="badge-problemas" class="ml-auto text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium"></span>
+            </div>
+            <div id="lista-problemas" class="p-4 space-y-3 min-h-[80px]">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+
+        <!-- Oportunidades -->
+        <div class="bg-white rounded-2xl shadow-sm border">
+            <div class="p-4 border-b flex items-center gap-2">
+                <span class="text-xl">💡</span>
+                <h3 class="font-bold text-gray-800">Oportunidades</h3>
+                <span id="badge-oportunidades" class="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium"></span>
+            </div>
+            <div id="lista-oportunidades" class="p-4 space-y-3 min-h-[80px]">
+                <!-- Preenchido via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Previsões -->
+    <div class="bg-white rounded-2xl shadow-sm border">
+        <div class="p-4 border-b flex items-center gap-2">
+            <span class="text-xl">🔭</span>
+            <h3 class="font-bold text-gray-800">Previsões</h3>
+            <span id="badge-previsoes" class="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium"></span>
+        </div>
+        <div id="lista-previsoes" class="p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- Preenchido via JS -->
+        </div>
+    </div>
+
+    <!-- Recomendações -->
+    <div class="bg-white rounded-2xl shadow-sm border">
+        <div class="p-4 border-b flex items-center gap-2">
+            <span class="text-xl">✅</span>
+            <h3 class="font-bold text-gray-800">Recomendações Práticas</h3>
+            <span id="badge-recomendacoes" class="ml-auto text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium"></span>
+        </div>
+        <div id="lista-recomendacoes" class="p-4 space-y-3">
+            <!-- Preenchido via JS -->
+        </div>
+    </div>
+
+</div>
+
+<!-- Histórico de Análises -->
+<div class="bg-white rounded-2xl shadow-sm border mt-6">
+    <div class="p-4 border-b flex items-center justify-between">
+        <div class="flex items-center gap-2">
+            <span class="text-xl">📜</span>
+            <h3 class="font-bold text-gray-800">Histórico de Análises</h3>
+        </div>
+        <button onclick="carregarHistorico()" class="text-xs text-blue-600 hover:underline">Atualizar</button>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                <tr>
+                    <th class="px-4 py-3 text-left">Data/Hora</th>
+                    <th class="px-4 py-3 text-left">Usuário</th>
+                    <th class="px-4 py-3 text-left">Tipo</th>
+                    <th class="px-4 py-3 text-right">Tokens</th>
+                    <th class="px-4 py-3 text-right">Duração</th>
+                    <th class="px-4 py-3 text-right">Sugestões Aplicadas</th>
+                </tr>
+            </thead>
+            <tbody id="tabela-historico" class="divide-y divide-gray-100">
+                <tr>
+                    <td colspan="6" class="text-center py-8 text-gray-400">Nenhuma análise realizada ainda.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% endif %}
+
+<!-- ── Modal: Confirmar aplicar sugestão ──────────────────────────── -->
+<div id="modal-aplicar" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6">
+        <div class="flex items-start gap-3 mb-4">
+            <span class="text-3xl">✅</span>
+            <div>
+                <h3 class="font-bold text-gray-800 text-lg">Aplicar Sugestão?</h3>
+                <p class="text-gray-500 text-sm mt-1">Você será direcionado para a área correspondente. A ação final ainda precisa ser feita manualmente.</p>
+            </div>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-5">
+            <p id="modal-sugestao-texto" class="text-gray-700 text-sm font-medium"></p>
+        </div>
+        <p class="text-xs text-gray-400 mb-4">Esta ação será registrada no histórico de auditoria.</p>
+        <div class="flex gap-3 justify-end">
+            <button onclick="fecharModal()" class="px-5 py-2 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 transition font-medium">
+                Cancelar
+            </button>
+            <button id="btn-confirmar-aplicar" class="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-bold">
+                Confirmar e Ir
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Modal: Configurar chave de API ────────────────────────────── -->
+<div id="modal-config" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <div class="flex items-center gap-3 mb-5">
+            <span class="text-3xl">⚙️</span>
+            <div>
+                <h3 class="font-bold text-gray-800 text-lg">Configurar API do Gemini</h3>
+                <p class="text-gray-500 text-sm">Obtenha sua chave gratuita em <a href="https://aistudio.google.com" target="_blank" class="text-blue-600 underline">aistudio.google.com</a></p>
+            </div>
+        </div>
+        <div class="mb-4">
+            <label class="text-sm font-medium text-gray-700 block mb-1">Chave da API</label>
+            <input id="input-api-key" type="password"
+                placeholder="AIza..."
+                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-400 outline-none font-mono"/>
+            <p class="text-xs text-gray-400 mt-1">Gratuita. A chave é salva no banco de dados local do sistema.</p>
+        </div>
+        <div id="msg-config" class="hidden text-sm rounded-lg px-3 py-2 mb-3"></div>
+        <div class="flex gap-3 justify-end">
+            <button onclick="fecharModalConfig()" class="px-5 py-2 border border-gray-300 rounded-xl text-gray-600 hover:bg-gray-50 transition font-medium">
+                Cancelar
+            </button>
+            <button onclick="salvarChave()" class="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-bold">
+                Salvar Chave
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Estado global ─────────────────────────────────────────────────────
+let analiseAtual = null;
+let analiseAtualId = null;
+
+// ── Mensagens de progresso ─────────────────────────────────────────────
+const msgProgresso = [
+    { p: 15, msg: "Coletando dados do sistema..." },
+    { p: 30, msg: "Analisando vendas dos últimos dias..." },
+    { p: 50, msg: "Verificando alertas de estoque..." },
+    { p: 65, msg: "Calculando margens e custos..." },
+    { p: 80, msg: "Enviando dados para a IA..." },
+    { p: 92, msg: "Processando insights..." },
+];
+let intervaloProgresso = null;
+
+function iniciarProgresso() {
+    let i = 0;
+    const barra = document.getElementById('barra-progresso');
+    const msg = document.getElementById('msg-progresso');
+    intervaloProgresso = setInterval(() => {
+        if (i < msgProgresso.length) {
+            barra.style.width = msgProgresso[i].p + '%';
+            msg.textContent = msgProgresso[i].msg;
+            i++;
+        }
+    }, 1800);
+}
+
+function pararProgresso() {
+    clearInterval(intervaloProgresso);
+    document.getElementById('barra-progresso').style.width = '100%';
+}
+
+// ── Executar análise ──────────────────────────────────────────────────
+async function executarAnalise() {
+    const tipo = document.getElementById('tipo-analise').value;
+    const dias = parseInt(document.getElementById('dias-vendas').value);
+
+    mostrarEstado('carregando');
+    iniciarProgresso();
+    document.getElementById('btn-analisar').disabled = true;
+
+    try {
+        const res = await fetch('/api/ia/analise', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tipo_analise: tipo, dias_vendas: dias }),
+        });
+        pararProgresso();
+
+        const data = await res.json();
+
+        if (!data.ok || !data.analise) {
+            mostrarEstado('erro');
+            document.getElementById('msg-erro').textContent =
+                data.erro || 'Erro desconhecido. Verifique a chave da API nas configurações.';
+            return;
+        }
+
+        analiseAtual = data.analise;
+        renderizarAnalise(data.analise, tipo, dias);
+        mostrarEstado('resultado');
+        carregarHistorico();
+
+    } catch (e) {
+        pararProgresso();
+        mostrarEstado('erro');
+        document.getElementById('msg-erro').textContent = 'Falha de comunicação com o servidor: ' + e.message;
+    } finally {
+        document.getElementById('btn-analisar').disabled = false;
+    }
+}
+
+// ── Renderizar resultado ──────────────────────────────────────────────
+function renderizarAnalise(analise, tipo, dias) {
+    // Score
+    const score = analise.score_saude || 0;
+    const arco = document.getElementById('score-arco');
+    const scoreVal = document.getElementById('score-valor');
+    arco.setAttribute('stroke', scoreColor(score));
+    setTimeout(() => {
+        arco.setAttribute('stroke-dasharray', `${score} 100`);
+    }, 100);
+    scoreVal.textContent = score;
+
+    // Resumo
+    document.getElementById('texto-resumo').textContent = analise.resumo || '—';
+    document.getElementById('texto-data-analise').textContent =
+        `Analisado em ${new Date().toLocaleString('pt-BR')} · Período: últimos ${dias} dias`;
+
+    const tiposLabel = {
+        completa: '📊 Completa', estoque: '📦 Estoque',
+        vendas: '💰 Vendas', custos: '📉 Custos',
+    };
+    document.getElementById('badge-analise').textContent = tiposLabel[tipo] || tipo;
+
+    // Problemas
+    renderLista('lista-problemas', 'badge-problemas', analise.problemas || [],
+        (item) => renderProblema(item));
+
+    // Oportunidades
+    renderLista('lista-oportunidades', 'badge-oportunidades', analise.oportunidades || [],
+        (item) => renderOportunidade(item));
+
+    // Previsões
+    renderLista('lista-previsoes', 'badge-previsoes', analise.previsoes || [],
+        (item) => renderPrevisao(item));
+
+    // Recomendações
+    renderRecomendacoes(analise.recomendacoes || []);
+}
+
+function renderLista(listaId, badgeId, itens, renderFn) {
+    const container = document.getElementById(listaId);
+    const badge = document.getElementById(badgeId);
+    badge.textContent = itens.length;
+    if (itens.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhum item identificado.</p>';
+        return;
+    }
+    container.innerHTML = itens.map(renderFn).join('');
+}
+
+function renderProblema(item) {
+    const cores = { alta: 'red', media: 'yellow', baixa: 'gray' };
+    const c = cores[item.urgencia] || 'gray';
+    return `<div class="flex gap-3 p-3 bg-${c}-50 rounded-xl border border-${c}-100">
+        <span class="text-lg flex-shrink-0">${item.urgencia === 'alta' ? '🔴' : item.urgencia === 'media' ? '🟡' : '⚪'}</span>
+        <div>
+            <p class="font-semibold text-gray-800 text-sm">${esc(item.titulo || item)}</p>
+            ${item.descricao ? `<p class="text-gray-500 text-xs mt-0.5">${esc(item.descricao)}</p>` : ''}
+        </div>
+        <span class="ml-auto text-xs px-2 py-0.5 bg-${c}-100 text-${c}-700 rounded-full h-fit font-medium">${item.urgencia || ''}</span>
+    </div>`;
+}
+
+function renderOportunidade(item) {
+    const cores = { alto: 'green', medio: 'blue', baixo: 'gray' };
+    const c = cores[item.impacto] || 'blue';
+    return `<div class="flex gap-3 p-3 bg-${c}-50 rounded-xl border border-${c}-100">
+        <span class="text-lg flex-shrink-0">💡</span>
+        <div>
+            <p class="font-semibold text-gray-800 text-sm">${esc(item.titulo || item)}</p>
+            ${item.descricao ? `<p class="text-gray-500 text-xs mt-0.5">${esc(item.descricao)}</p>` : ''}
+        </div>
+        <span class="ml-auto text-xs px-2 py-0.5 bg-${c}-100 text-${c}-700 rounded-full h-fit font-medium">${item.impacto || ''}</span>
+    </div>`;
+}
+
+function renderPrevisao(item) {
+    return `<div class="p-3 bg-purple-50 rounded-xl border border-purple-100 flex gap-3">
+        <span class="text-lg flex-shrink-0">🔭</span>
+        <div>
+            <p class="font-semibold text-gray-800 text-sm">${esc(item.titulo || item)}</p>
+            ${item.descricao ? `<p class="text-gray-500 text-xs mt-0.5">${esc(item.descricao)}</p>` : ''}
+        </div>
+    </div>`;
+}
+
+function renderRecomendacoes(recomendacoes) {
+    const container = document.getElementById('lista-recomendacoes');
+    const badge = document.getElementById('badge-recomendacoes');
+    badge.textContent = recomendacoes.length;
+
+    if (recomendacoes.length === 0) {
+        container.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">Nenhuma recomendação gerada.</p>';
+        return;
+    }
+
+    const icones = { estoque: '📦', vendas: '💰', custo: '📉', produto: '🍔', operacional: '⚙️' };
+    const coresPrioridade = { alta: 'orange', media: 'blue', baixa: 'gray' };
+
+    container.innerHTML = recomendacoes.map((rec, idx) => {
+        const texto = typeof rec === 'string' ? rec : rec.texto || JSON.stringify(rec);
+        const categoria = typeof rec === 'object' ? (rec.categoria || 'operacional') : 'operacional';
+        const prioridade = typeof rec === 'object' ? (rec.prioridade || 'media') : 'media';
+        const icone = icones[categoria] || '✅';
+        const cor = coresPrioridade[prioridade] || 'blue';
+
+        return `<div class="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100 hover:border-blue-200 transition group">
+            <span class="text-xl flex-shrink-0">${icone}</span>
+            <div class="flex-1 min-w-0">
+                <p class="text-gray-800 text-sm font-medium">${esc(texto)}</p>
+                <div class="flex gap-2 mt-1.5">
+                    <span class="text-xs bg-${cor}-100 text-${cor}-700 px-2 py-0.5 rounded-full capitalize">${prioridade}</span>
+                    <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full capitalize">${categoria}</span>
+                </div>
+            </div>
+            <button
+                onclick="confirmarAplicar(${idx}, '${esc(texto).replace(/'/g,'&#39;')}', '${categoria}')"
+                class="flex-shrink-0 opacity-0 group-hover:opacity-100 transition px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 font-medium flex items-center gap-1">
+                Aplicar ▶
+            </button>
+        </div>`;
+    }).join('');
+}
+
+// ── Aplicar sugestão ──────────────────────────────────────────────────
+let pendenteSugestao = null;
+
+function confirmarAplicar(idx, texto, categoria) {
+    pendenteSugestao = { texto, categoria };
+    document.getElementById('modal-sugestao-texto').textContent = texto;
+    document.getElementById('modal-aplicar').classList.remove('hidden');
+    document.getElementById('btn-confirmar-aplicar').onclick = () => aplicarSugestao(texto, categoria);
+}
+
+async function aplicarSugestao(texto, categoria) {
+    fecharModal();
+    // Precisamos do ID da análise — carregamos o último do histórico
+    const ultimaId = await obterUltimaAnaliseId();
+    try {
+        const res = await fetch('/api/ia/sugestao/aplicar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                analise_id: ultimaId || 1,
+                sugestao_texto: texto,
+                categoria: categoria,
+            }),
+        });
+        const data = await res.json();
+        if (data.ok && data.url_destino) {
+            window.location.href = data.url_destino;
+        }
+    } catch (e) {
+        alert('Erro ao registrar sugestão: ' + e.message);
+    }
+}
+
+async function obterUltimaAnaliseId() {
+    try {
+        const res = await fetch('/api/ia/historico?limite=1');
+        const data = await res.json();
+        if (data.ok && data.historico.length > 0) return data.historico[0].id;
+    } catch (_) {}
+    return null;
+}
+
+function fecharModal() {
+    document.getElementById('modal-aplicar').classList.add('hidden');
+}
+
+// ── Configurar chave ──────────────────────────────────────────────────
+function abrirConfiguracoes() {
+    document.getElementById('modal-config').classList.remove('hidden');
+    document.getElementById('msg-config').classList.add('hidden');
+}
+
+function fecharModalConfig() {
+    document.getElementById('modal-config').classList.add('hidden');
+}
+
+async function salvarChave() {
+    const chave = document.getElementById('input-api-key').value.trim();
+    const msg = document.getElementById('msg-config');
+    msg.classList.remove('hidden', 'bg-red-50', 'text-red-700', 'bg-green-50', 'text-green-700');
+
+    try {
+        const res = await fetch('/api/ia/configurar-chave', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: chave }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+            msg.classList.add('bg-green-50', 'text-green-700');
+            msg.textContent = '✅ ' + data.mensagem;
+            setTimeout(fecharModalConfig, 1500);
+        } else {
+            msg.classList.add('bg-red-50', 'text-red-700');
+            msg.textContent = '❌ ' + (data.erro || 'Erro ao salvar.');
+        }
+    } catch (e) {
+        msg.classList.add('bg-red-50', 'text-red-700');
+        msg.textContent = '❌ Falha de comunicação: ' + e.message;
+    }
+}
+
+// ── Histórico ─────────────────────────────────────────────────────────
+async function carregarHistorico() {
+    try {
+        const res = await fetch('/api/ia/historico?limite=20');
+        const data = await res.json();
+        if (!data.ok) return;
+
+        const tbody = document.getElementById('tabela-historico');
+        if (data.historico.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">Nenhuma análise ainda.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.historico.map(h => {
+            const data_hr = new Date(h.data_hora).toLocaleString('pt-BR');
+            const dur = h.duracao_ms > 0 ? (h.duracao_ms / 1000).toFixed(1) + 's' : '—';
+            const tipoEmoji = { completa: '📊', estoque: '📦', vendas: '💰', custos: '📉', configurar_chave_api: '⚙️' };
+            const emoji = tipoEmoji[h.tipo_analise] || '🤖';
+            return `<tr class="hover:bg-gray-50 transition">
+                <td class="px-4 py-3 text-gray-700">${data_hr}</td>
+                <td class="px-4 py-3 text-gray-600">${esc(h.usuario)} <span class="text-xs text-gray-400">(${esc(h.role)})</span></td>
+                <td class="px-4 py-3">${emoji} ${esc(h.tipo_analise)}</td>
+                <td class="px-4 py-3 text-right text-gray-500">${h.tokens_usados || '—'}</td>
+                <td class="px-4 py-3 text-right text-gray-500">${dur}</td>
+                <td class="px-4 py-3 text-right">
+                    ${h.sugestoes_aplicadas > 0
+                        ? `<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-medium">${h.sugestoes_aplicadas}</span>`
+                        : '<span class="text-gray-300">—</span>'}
+                </td>
+            </tr>`;
+        }).join('');
+    } catch (e) {
+        console.error('Erro ao carregar histórico:', e);
+    }
+}
+
+// ── Utilitários ───────────────────────────────────────────────────────
+function mostrarEstado(estado) {
+    ['inicial', 'carregando', 'erro', 'resultado'].forEach(e => {
+        document.getElementById('estado-' + e)?.classList.add('hidden');
+    });
+    document.getElementById('estado-' + estado)?.classList.remove('hidden');
+}
+
+function scoreColor(score) {
+    if (score >= 75) return '#22c55e';  // verde
+    if (score >= 50) return '#f59e0b';  // amarelo
+    return '#ef4444';                   // vermelho
+}
+
+function esc(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+}
+
+// Fechar modais clicando fora
+document.getElementById('modal-aplicar').addEventListener('click', function(e) {
+    if (e.target === this) fecharModal();
+});
+document.getElementById('modal-config').addEventListener('click', function(e) {
+    if (e.target === this) fecharModalConfig();
+});
+
+// Carrega histórico ao abrir a página
+carregarHistorico();
+</script>
+{% endblock %}

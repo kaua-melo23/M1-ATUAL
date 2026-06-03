@@ -1,0 +1,363 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Navegação{% endblock %}
+
+{% block content %}
+<style>
+    .drag-item { cursor: grab; user-select: none; }
+    .drag-item:active { cursor: grabbing; }
+    .drag-item.dragging { opacity: 0.4; border: 2px dashed #94a3b8; }
+    .drag-over { border-top: 3px solid #3b82f6 !important; }
+    .toggle-on  { background: #22c55e; }
+    .toggle-off { background: #e2e8f0; }
+</style>
+
+<div class="space-y-10">
+
+    <!-- Cabeçalho -->
+    <div>
+        <h2 class="text-3xl font-black text-slate-800 italic uppercase tracking-tighter">🗂️ Navegação</h2>
+        <p class="text-slate-500 text-sm font-bold uppercase tracking-widest">
+            Configure os menus do cliente e do painel admin
+        </p>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-10">
+
+        <!-- ══════════════════════════════════
+             PAINEL 1 — CATEGORIAS DO CLIENTE
+        ══════════════════════════════════ -->
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-black text-slate-800 uppercase tracking-tight">📱 Menu do Cliente</h3>
+                    <p class="text-xs text-slate-400 font-bold uppercase">Categorias que aparecem na loja</p>
+                </div>
+                <button onclick="abrirModalCategoria()"
+                    class="bg-green-500 hover:bg-green-600 text-white font-black text-xs uppercase px-4 py-2 rounded-xl shadow transition-all active:scale-95">
+                    + Nova
+                </button>
+            </div>
+
+            <div id="lista-cats" class="space-y-2">
+                {% for cat in categorias %}
+                <div class="drag-item bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-4"
+                     data-id="{{ cat.id }}" data-tipo="cat"
+                     draggable="true">
+                    <span class="text-slate-400 text-lg select-none cursor-grab">⠿</span>
+                    <span class="text-2xl">{{ cat.emoji }}</span>
+                    <span class="flex-1 font-bold text-slate-800">{{ cat.nome }}</span>
+
+                    <!-- Toggle ativo -->
+                    <button onclick="toggleCategoria({{ cat.id }}, {{ cat.ativo }}, '{{ cat.nome }}', '{{ cat.emoji }}')"
+                        class="relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none {{ 'toggle-on' if cat.ativo else 'toggle-off' }}"
+                        title="{{ 'Ativa' if cat.ativo else 'Oculta' }}">
+                        <span class="absolute top-0.5 transition-all duration-200 w-5 h-5 rounded-full bg-white shadow {{ 'left-6' if cat.ativo else 'left-0.5' }}"></span>
+                    </button>
+
+                    <!-- Editar -->
+                    <button onclick="abrirModalCategoria({{ cat.id }}, '{{ cat.nome }}', '{{ cat.emoji }}')"
+                        class="text-blue-500 hover:text-blue-700 p-1 rounded-lg hover:bg-blue-50 transition text-sm font-black">
+                        ✏️
+                    </button>
+
+                    <!-- Deletar -->
+                    <button onclick="deletarCategoria({{ cat.id }}, '{{ cat.nome }}')"
+                        class="text-red-400 hover:text-red-600 p-1 rounded-lg hover:bg-red-50 transition text-sm font-black">
+                        🗑️
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
+                Arraste para reordenar • Toggle para mostrar/ocultar
+            </p>
+        </div>
+
+        <!-- ══════════════════════════════════
+             PAINEL 2 — MENU DO ADMIN
+        ══════════════════════════════════ -->
+        <div class="space-y-4">
+            <div>
+                <h3 class="text-lg font-black text-slate-800 uppercase tracking-tight">⚙️ Menu do Admin</h3>
+                <p class="text-xs text-slate-400 font-bold uppercase">Itens da barra lateral do painel</p>
+            </div>
+
+            <div id="lista-menu" class="space-y-2">
+                {% for item in menu_admin %}
+                <div class="drag-item bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-4"
+                     data-id="{{ item.id }}" data-tipo="menu"
+                     draggable="true">
+                    <span class="text-slate-400 text-lg select-none cursor-grab">⠿</span>
+                    <span class="text-2xl">{{ item.emoji }}</span>
+                    <div class="flex-1">
+                        <p class="font-bold text-slate-800 text-sm">{{ item.label }}</p>
+                        <p class="text-[10px] text-slate-400 font-mono">{{ item.url }}</p>
+                    </div>
+
+                    <!-- Toggle visível -->
+                    <button onclick="toggleMenu({{ item.id }}, {{ item.visivel }}, '{{ item.label }}', '{{ item.emoji }}')"
+                        class="relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none {{ 'toggle-on' if item.visivel else 'toggle-off' }}"
+                        title="{{ 'Visível' if item.visivel else 'Oculto' }}">
+                        <span class="absolute top-0.5 transition-all duration-200 w-5 h-5 rounded-full bg-white shadow {{ 'left-6' if item.visivel else 'left-0.5' }}"></span>
+                    </button>
+
+                    <!-- Editar label/emoji -->
+                    <button onclick="abrirModalMenu({{ item.id }}, '{{ item.label }}', '{{ item.emoji }}')"
+                        class="text-blue-500 hover:text-blue-700 p-1 rounded-lg hover:bg-blue-50 transition text-sm font-black">
+                        ✏️
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center">
+                Arraste para reordenar • Toggle para mostrar/ocultar
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ MODAL CATEGORIA ══════════════ -->
+<div id="modal-cat" class="fixed inset-0 bg-black/60 z-[200] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 space-y-5">
+        <h3 id="modal-cat-titulo" class="font-black text-slate-800 text-xl uppercase tracking-tight">Nova Categoria</h3>
+
+        <div>
+            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Nome</label>
+            <input id="cat-nome" type="text" maxlength="40" placeholder="Ex: Combos, Pizzas..."
+                class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Emoji</label>
+            <input id="cat-emoji" type="text" maxlength="4" placeholder="🍕"
+                class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex flex-wrap gap-2 mt-3">
+                {% for e in ['🍔','🍕','🌮','🌯','🍟','🍗','🥗','🥩','🍣','🍜','🥤','🧃','☕','🍺','🍨','🍰','🎂','🍫','🍿','🥙'] %}
+                <button onclick="document.getElementById('cat-emoji').value='{{ e }}'"
+                    class="text-xl hover:scale-125 transition-transform p-1 rounded-lg hover:bg-gray-100">{{ e }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <input type="hidden" id="cat-id" value="">
+
+        <div class="flex gap-3 pt-2">
+            <button onclick="fecharModalCat()"
+                class="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 font-black uppercase text-xs py-3 rounded-2xl transition">
+                Cancelar
+            </button>
+            <button onclick="salvarCategoria()"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs py-3 rounded-2xl transition shadow-lg shadow-blue-200">
+                Salvar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ MODAL MENU ADMIN ══════════════ -->
+<div id="modal-menu" class="fixed inset-0 bg-black/60 z-[200] hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 space-y-5">
+        <h3 class="font-black text-slate-800 text-xl uppercase tracking-tight">Editar Item do Menu</h3>
+
+        <div>
+            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Nome do Item</label>
+            <input id="menu-label" type="text" maxlength="30"
+                class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <div>
+            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Emoji</label>
+            <input id="menu-emoji" type="text" maxlength="4"
+                class="w-full border border-gray-200 rounded-2xl px-4 py-3 font-bold text-2xl text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex flex-wrap gap-2 mt-3">
+                {% for e in ['📊','📈','📦','🍔','🛵','📍','🎨','🗂️','🔧','📋','💰','👥','⚙️','🔔','📱'] %}
+                <button onclick="document.getElementById('menu-emoji').value='{{ e }}'"
+                    class="text-xl hover:scale-125 transition-transform p-1 rounded-lg hover:bg-gray-100">{{ e }}</button>
+                {% endfor %}
+            </div>
+        </div>
+
+        <input type="hidden" id="menu-id" value="">
+        <input type="hidden" id="menu-visivel" value="">
+
+        <div class="flex gap-3 pt-2">
+            <button onclick="fecharModalMenu()"
+                class="flex-1 bg-gray-100 hover:bg-gray-200 text-slate-700 font-black uppercase text-xs py-3 rounded-2xl transition">
+                Cancelar
+            </button>
+            <button onclick="salvarMenu()"
+                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-xs py-3 rounded-2xl transition shadow-lg shadow-blue-200">
+                Salvar
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ══════════════════════════════════════════════
+//  DRAG AND DROP — Genérico para ambas as listas
+// ══════════════════════════════════════════════
+function initDragDrop(listaId, endpoint) {
+    const lista = document.getElementById(listaId);
+    let dragged = null;
+
+    lista.addEventListener('dragstart', e => {
+        dragged = e.target.closest('.drag-item');
+        if (!dragged) return;
+        setTimeout(() => dragged.classList.add('dragging'), 0);
+    });
+
+    lista.addEventListener('dragend', e => {
+        const item = e.target.closest('.drag-item');
+        if (item) item.classList.remove('dragging', 'drag-over');
+        // Salva nova ordem
+        const ids = [...lista.querySelectorAll('.drag-item')].map(el => parseInt(el.dataset.id));
+        fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids })
+        });
+    });
+
+    lista.addEventListener('dragover', e => {
+        e.preventDefault();
+        const target = e.target.closest('.drag-item');
+        if (!target || target === dragged) return;
+        lista.querySelectorAll('.drag-item').forEach(el => el.classList.remove('drag-over'));
+        target.classList.add('drag-over');
+        // Move no DOM
+        const items = [...lista.querySelectorAll('.drag-item')];
+        const draggedIdx = items.indexOf(dragged);
+        const targetIdx  = items.indexOf(target);
+        if (draggedIdx < targetIdx) {
+            lista.insertBefore(dragged, target.nextSibling);
+        } else {
+            lista.insertBefore(dragged, target);
+        }
+    });
+
+    lista.addEventListener('dragleave', e => {
+        const target = e.target.closest('.drag-item');
+        if (target) target.classList.remove('drag-over');
+    });
+}
+
+initDragDrop('lista-cats',  '/api/categorias/reordenar');
+initDragDrop('lista-menu',  '/api/menu-admin/reordenar');
+
+// ══════════════════════════════════════════════
+//  MODAL CATEGORIA
+// ══════════════════════════════════════════════
+function abrirModalCategoria(id='', nome='', emoji='🍔') {
+    document.getElementById('cat-id').value    = id;
+    document.getElementById('cat-nome').value  = nome;
+    document.getElementById('cat-emoji').value = emoji || '🍔';
+    document.getElementById('modal-cat-titulo').textContent = id ? 'Editar Categoria' : 'Nova Categoria';
+    document.getElementById('modal-cat').classList.remove('hidden');
+}
+function fecharModalCat() {
+    document.getElementById('modal-cat').classList.add('hidden');
+}
+
+async function salvarCategoria() {
+    const id    = document.getElementById('cat-id').value;
+    const nome  = document.getElementById('cat-nome').value.trim();
+    const emoji = document.getElementById('cat-emoji').value.trim() || '🍽️';
+
+    if (!nome) { alert('Digite o nome da categoria'); return; }
+
+    if (id) {
+        // Atualizar: precisamos do ativo atual — pegamos do DOM
+        const itemEl = document.querySelector(`#lista-cats [data-id="${id}"]`);
+        const btnToggle = itemEl ? itemEl.querySelector('button[title]') : null;
+        const ativo = btnToggle && btnToggle.classList.contains('toggle-on') ? 1 : 0;
+
+        await fetch(`/api/categorias/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, emoji, ativo })
+        });
+    } else {
+        await fetch('/api/categorias', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nome, emoji })
+        });
+    }
+    location.reload();
+}
+
+async function deletarCategoria(id, nome) {
+    if (!confirm(`Remover a categoria "${nome}"?\n\nOs produtos desta categoria não serão apagados.`)) return;
+    await fetch(`/api/categorias/${id}`, { method: 'DELETE' });
+    location.reload();
+}
+
+async function toggleCategoria(id, ativoAtual, nome, emoji) {
+    const novoAtivo = ativoAtual ? 0 : 1;
+    await fetch(`/api/categorias/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nome, emoji, ativo: novoAtivo })
+    });
+    location.reload();
+}
+
+// ══════════════════════════════════════════════
+//  MODAL MENU ADMIN
+// ══════════════════════════════════════════════
+function abrirModalMenu(id, label, emoji) {
+    document.getElementById('menu-id').value    = id;
+    document.getElementById('menu-label').value = label;
+    document.getElementById('menu-emoji').value = emoji;
+    document.getElementById('modal-menu').classList.remove('hidden');
+}
+function fecharModalMenu() {
+    document.getElementById('modal-menu').classList.add('hidden');
+}
+
+async function salvarMenu() {
+    const id    = document.getElementById('menu-id').value;
+    const label = document.getElementById('menu-label').value.trim();
+    const emoji = document.getElementById('menu-emoji').value.trim() || '📄';
+
+    if (!label) { alert('Digite o nome do item'); return; }
+
+    // Preserva visibilidade atual
+    const itemEl = document.querySelector(`#lista-menu [data-id="${id}"]`);
+    const btnToggle = itemEl ? itemEl.querySelector('button[title]') : null;
+    const visivel = btnToggle && btnToggle.classList.contains('toggle-on') ? 1 : 0;
+
+    await fetch(`/api/menu-admin/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, emoji, visivel })
+    });
+    location.reload();
+}
+
+async function toggleMenu(id, visivelAtual, label, emoji) {
+    const novoVisivel = visivelAtual ? 0 : 1;
+    await fetch(`/api/menu-admin/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, emoji, visivel: novoVisivel })
+    });
+    location.reload();
+}
+
+// Fecha modais clicando fora
+document.getElementById('modal-cat').addEventListener('click', function(e) {
+    if (e.target === this) fecharModalCat();
+});
+document.getElementById('modal-menu').addEventListener('click', function(e) {
+    if (e.target === this) fecharModalMenu();
+});
+</script>
+{% endblock %}

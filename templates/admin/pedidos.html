@@ -1,0 +1,397 @@
+{% extends "admin/base.html" %}
+{% block title %}Gestão de Pedidos{% endblock %}
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Cabeçalho -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-3xl font-black text-slate-800 italic uppercase tracking-tighter">Gestão de Pedidos</h2>
+            <p class="text-slate-500 text-sm font-bold uppercase tracking-widest">Acompanhamento em tempo real</p>
+        </div>
+        <div class="flex gap-2 flex-wrap items-center">
+            <span id="info-turno" class="text-[10px] font-bold text-slate-500 bg-slate-100 px-3 py-2 rounded-xl hidden"></span>
+            <button onclick="atualizarPedidos()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition-all">
+                🔄 ATUALIZAR
+            </button>
+            <div class="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-3 py-2 rounded-xl">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse inline-block"></span> AO VIVO
+            </div>
+        </div>
+    </div>
+
+    <!-- Busca por ID (recolhível) -->
+    <div x-data="{ aberto: false }" class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+        <button @click="aberto = !aberto" class="w-full flex items-center justify-between px-4 py-3 text-[10px] font-black text-slate-500 uppercase tracking-widest hover:bg-slate-50 transition-colors">
+            <span>🔍 Buscar pedido por ID</span>
+            <span x-text="aberto ? '▲' : '▼'" class="text-slate-400"></span>
+        </button>
+        <div x-show="aberto" x-transition class="px-4 pb-4 border-t border-slate-100">
+            <div class="flex gap-2 mt-3">
+                <input type="number" id="busca-id" placeholder="Ex: 42" min="1"
+                    class="flex-1 border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    onkeydown="if(event.key==='Enter') buscarPorId()">
+                <button onclick="buscarPorId()" class="bg-slate-800 text-white px-5 py-2 rounded-xl font-bold text-xs uppercase hover:bg-blue-600 transition-all">Buscar</button>
+                <button onclick="limparBusca()" class="border border-slate-200 text-slate-500 px-4 py-2 rounded-xl font-bold text-xs uppercase hover:bg-slate-50 transition-all">Limpar</button>
+            </div>
+            <p id="busca-msg" class="text-[10px] text-slate-400 mt-2 hidden"></p>
+        </div>
+    </div>
+
+
+    <!-- Contadores -->
+    <div class="grid grid-cols-4 gap-3">
+        <div class="bg-gray-100 rounded-2xl p-3 text-center">
+            <div id="count-pendente" class="text-2xl font-black text-gray-700">0</div>
+            <div class="text-[9px] font-black text-gray-500 uppercase">Pendentes</div>
+        </div>
+        <div class="bg-orange-50 rounded-2xl p-3 text-center">
+            <div id="count-preparo" class="text-2xl font-black text-orange-600">0</div>
+            <div class="text-[9px] font-black text-orange-500 uppercase">Na Cozinha</div>
+        </div>
+        <div class="bg-blue-50 rounded-2xl p-3 text-center">
+            <div id="count-caminho" class="text-2xl font-black text-blue-600">0</div>
+            <div class="text-[9px] font-black text-blue-500 uppercase">A Caminho</div>
+        </div>
+        <div class="bg-green-50 rounded-2xl p-3 text-center">
+            <div id="count-finalizado" class="text-2xl font-black text-green-600">0</div>
+            <div class="text-[9px] font-black text-green-500 uppercase">Finalizados</div>
+        </div>
+    </div>
+
+    <!-- Kanban -->
+    <div id="kanban-board" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div id="col-pendente" class="bg-gray-300/50 p-4 rounded-3xl min-h-[500px]">
+            <h3 onclick="toggleColuna('pendente')" class="font-black text-gray-700 uppercase italic mb-4 px-2 cursor-pointer select-none flex justify-between items-center hover:opacity-70 transition-opacity">
+                <span>📩 Pendentes</span><span id="toggle-pendente" class="text-xs font-bold opacity-40">▲</span>
+            </h3>
+            <div id="lista-pendente" class="space-y-4"></div>
+        </div>
+        <div id="col-preparo" class="bg-orange-100/50 p-4 rounded-3xl min-h-[500px]">
+            <h3 onclick="toggleColuna('preparo')" class="font-black text-orange-600 uppercase italic mb-4 px-2 cursor-pointer select-none flex justify-between items-center hover:opacity-70 transition-opacity">
+                <span>👨‍🍳 Na Cozinha</span><span id="toggle-preparo" class="text-xs font-bold opacity-40">▲</span>
+            </h3>
+            <div id="lista-preparo" class="space-y-4"></div>
+        </div>
+        <div id="col-caminho" class="bg-blue-100/50 p-4 rounded-3xl min-h-[500px]">
+            <h3 onclick="toggleColuna('caminho')" class="font-black text-blue-600 uppercase italic mb-4 px-2 cursor-pointer select-none flex justify-between items-center hover:opacity-70 transition-opacity">
+                <span>🛵 A Caminho</span><span id="toggle-caminho" class="text-xs font-bold opacity-40">▲</span>
+            </h3>
+            <div id="lista-caminho" class="space-y-4"></div>
+        </div>
+        <div id="col-finalizado" class="bg-green-100/50 p-4 rounded-3xl min-h-[500px]">
+            <h3 onclick="toggleColuna('finalizado')" class="font-black text-green-600 uppercase italic mb-4 px-2 cursor-pointer select-none flex justify-between items-center hover:opacity-70 transition-opacity">
+                <span>✅ Finalizados</span><span id="toggle-finalizado" class="text-xs font-bold opacity-40">▲</span>
+            </h3>
+            <div id="lista-finalizado" class="space-y-4 opacity-70"></div>
+        </div>
+    </div>
+
+    <div id="msg-vazia" style="display:none;text-align:center;padding:64px 0;color:#94a3b8;">
+        <div style="font-size:48px;margin-bottom:12px;">📭</div>
+        <p style="font-weight:900;text-transform:uppercase;font-size:13px;">Nenhum pedido encontrado</p>
+        <p style="font-size:12px;">Ajuste os filtros ou aguarde novos pedidos</p>
+    </div>
+</div>
+
+<!-- Modal Detalhe -->
+<div id="modal-detalhe" class="hidden fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl">
+        <div class="p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-black uppercase italic text-slate-800">Detalhes do Pedido</h3>
+                <button onclick="excluirPedidoConfirmado()" id="btn-excluir-modal" class="text-red-500 hover:bg-red-50 p-2 rounded-lg text-sm">Excluir</button>
+            </div>
+            <div id="detalhe-conteudo" class="space-y-4 text-sm"></div>
+            <button onclick="document.getElementById('modal-detalhe').classList.add('hidden')"
+                class="w-full mt-6 bg-slate-800 text-white py-4 rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-slate-700 transition-colors">
+                FECHAR
+            </button>
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+<script>
+let pedidosCache = [];
+let pedidoSelecionadoId = null;
+let modosBusca = false;
+
+// Colunas visíveis por padrão
+const colVisible = { pendente: true, preparo: true, caminho: true, finalizado: true };
+
+// STATUS que cada coluna aceita
+const STATUS_COL = {
+    pendente:   ['Pendente','Aguardando Pagamento','Confirmado','Pago'],
+    preparo:    ['Preparando'],
+    caminho:    ['A Caminho'],
+    finalizado: ['Finalizado']
+};
+
+// ── TOGGLE COLUNA ─────────────────────────────────────────────────
+function toggleColuna(col) {
+    colVisible[col] = !colVisible[col];
+    const lista = document.getElementById('lista-' + col);
+    const icon  = document.getElementById('toggle-' + col);
+    lista.style.display = colVisible[col] ? '' : 'none';
+    icon.textContent    = colVisible[col] ? '▲' : '▼';
+}
+
+// ── HORÁRIO DE TURNO ─────────────────────────────────────────────
+// Horário do turno em minutos desde meia-noite (fuso local do browser)
+let turnoInicioMin = null;
+let turnoFimMin    = null;
+
+async function carregarHorarioTurno() {
+    try {
+        const res = await fetch('/api/configuracoes', { credentials: 'same-origin' });
+        const cfg = await res.json();
+        const abertura   = cfg.hora_abertura  || '18:00';
+        const fechamento = cfg.hora_fechamento || '23:00';
+
+        const toMin = h => { const [hh,mm] = h.split(':').map(Number); return hh*60+mm; };
+        turnoInicioMin = toMin(abertura);
+        turnoFimMin    = toMin(fechamento);
+
+        const el = document.getElementById('info-turno');
+        if (el) {
+            el.textContent = '🕐 ' + abertura + ' – ' + fechamento;
+            el.classList.remove('hidden');
+        }
+    } catch(e) {
+        console.warn('Não foi possível carregar horário:', e);
+    }
+}
+
+// Retorna true se a data_hora do pedido cai dentro do turno (fuso local)
+function dentroDoTurno(dataHoraStr) {
+    if (turnoInicioMin === null) return true; // sem config, mostra tudo
+    if (!dataHoraStr) return false;
+
+    // data_hora vem como "2026-04-23 22:00:00" já no fuso local do servidor
+    // NÃO adicionar 'Z' — tratar como hora local diretamente
+    const raw = dataHoraStr.replace(' ', 'T');
+    const d   = new Date(raw);
+    if (isNaN(d.getTime())) return true; // data inválida → não filtrar
+    const minLocal = d.getHours() * 60 + d.getMinutes();
+
+    if (turnoInicioMin <= turnoFimMin) {
+        // turno normal: ex 18:00–23:00
+        return minLocal >= turnoInicioMin && minLocal <= turnoFimMin;
+    } else {
+        // turno vira meia-noite: ex 22:00–02:00
+        return minLocal >= turnoInicioMin || minLocal <= turnoFimMin;
+    }
+}
+
+// ── BUSCA POR ID ─────────────────────────────────────────────────
+async function buscarPorId() {
+    const id = document.getElementById('busca-id').value.trim();
+    if (!id) return;
+    const msg = document.getElementById('busca-msg');
+    msg.classList.remove('hidden');
+    msg.textContent = 'Buscando...';
+
+    try {
+        const res = await fetch('/api/listar_pedidos', { credentials: 'same-origin' });
+        const todos = await res.json();
+        const encontrado = todos.find(p => String(p.id) === String(id));
+        if (encontrado) {
+            pedidosCache = [encontrado];
+            renderizarPedidos(pedidosCache);
+            msg.textContent = '✅ Pedido #' + id + ' encontrado.';
+        } else {
+            pedidosCache = [];
+            renderizarPedidos([]);
+            msg.textContent = '❌ Nenhum pedido com ID #' + id + '.';
+        }
+        modosBusca = true;
+    } catch(e) {
+        msg.textContent = '❌ Erro ao buscar.';
+    }
+}
+
+function limparBusca() {
+    document.getElementById('busca-id').value = '';
+    document.getElementById('busca-msg').classList.add('hidden');
+    modosBusca = false;
+    atualizarPedidos();
+}
+
+// ── CARGA ────────────────────────────────────────────────────────
+async function atualizarPedidos() {
+    if (modosBusca) return;
+    try {
+        const url = '/api/listar_pedidos';
+        const res = await fetch(url, { credentials: 'same-origin' });
+
+        if (!res.ok) {
+            if (res.status === 401 || res.status === 302) { window.location.href = '/login'; return; }
+            throw new Error('HTTP ' + res.status);
+        }
+
+        pedidosCache = await res.json();
+        renderizarPedidos(pedidosCache);
+    } catch(e) {
+        console.error('Erro ao carregar pedidos:', e);
+    }
+}
+
+// ── RENDERIZAÇÃO ─────────────────────────────────────────────────
+function formatarItens(itens) {
+    if (!Array.isArray(itens) || itens.length === 0) return 'Sem itens';
+    return itens.map(i => typeof i === 'object' && i ? (i.quantidade||1) + 'x ' + (i.produto_nome||i.nome||'?') : i).join('<br>');
+}
+
+function formatarHora(dh) {
+    if (!dh) return '--:--';
+    const p = dh.includes(' ') ? dh.split(' ') : dh.split('T');
+    return p[1] ? p[1].slice(0,5) : '--:--';
+}
+
+function renderizarPedidos(todosRaw) {
+    // Filtra pelo turno no fuso local do browser
+    const todos = todosRaw.filter(p => dentroDoTurno(p.data_hora || p.data));
+
+    ['lista-pendente','lista-preparo','lista-caminho','lista-finalizado'].forEach(id => {
+        document.getElementById(id).innerHTML = '';
+    });
+
+    const containers = {
+        pendente:   document.getElementById('lista-pendente'),
+        preparo:    document.getElementById('lista-preparo'),
+        caminho:    document.getElementById('lista-caminho'),
+        finalizado: document.getElementById('lista-finalizado')
+    };
+
+    let counts = { pendente:0, preparo:0, caminho:0, finalizado:0 };
+    let totalExibido = 0;
+
+    todos.forEach(p => {
+        // Descobre qual coluna recebe este status
+        let colKey = null;
+        for (const [col, statusList] of Object.entries(STATUS_COL)) {
+            if (statusList.includes(p.status)) { colKey = col; break; }
+        }
+        if (!colKey) return; // status desconhecido
+
+        counts[colKey]++;
+
+        const target = containers[colKey];
+        if (!target) return;
+
+        totalExibido++;
+
+        const nomeCliente = p.cliente_nome || p.cliente || 'Não identificado';
+        const itensHtml   = formatarItens(p.itens);
+        const total       = parseFloat(p.total_geral || p.total || 0).toFixed(2);
+        const hora        = formatarHora(p.data_hora || p.data);
+
+        let btn = '';
+        if (colKey === 'pendente')
+            btn = '<button onclick="mudarStatus('+p.id+',\'Preparando\')" style="background:#f97316;color:#fff;font-size:9px;padding:6px 10px;border-radius:8px;font-weight:900;border:none;cursor:pointer;text-transform:uppercase;">✅ Aceitar</button>';
+        else if (colKey === 'preparo')
+            btn = '<button onclick="mudarStatus('+p.id+',\'A Caminho\')" style="background:#2563eb;color:#fff;font-size:9px;padding:6px 10px;border-radius:8px;font-weight:900;border:none;cursor:pointer;text-transform:uppercase;">🛵 Despachar</button>';
+        else if (colKey === 'caminho')
+            btn = '<button onclick="mudarStatus('+p.id+',\'Finalizado\')" style="background:#16a34a;color:#fff;font-size:9px;padding:6px 10px;border-radius:8px;font-weight:900;border:none;cursor:pointer;text-transform:uppercase;">✅ Entregar</button>';
+
+        target.innerHTML +=
+            '<div onclick="abrirDetalhes('+p.id+')" style="background:#fff;padding:16px;border-radius:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid #f1f5f9;cursor:pointer;margin-bottom:12px;">' +
+                '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">' +
+                    '<div style="flex:1;">' +
+                        '<span style="font-size:10px;font-weight:900;color:#9ca3af;">#'+String(p.id).padStart(4,'0')+'</span>' +
+                        '<h4 style="font-weight:900;color:#1e293b;font-size:11px;text-transform:uppercase;font-style:italic;margin:2px 0;">' + nomeCliente + '</h4>' +
+                        '<div style="font-weight:700;color:#475569;font-size:11px;line-height:1.6;">' + itensHtml + '</div>' +
+                        '<p style="font-size:9px;color:#3b82f6;font-weight:900;text-transform:uppercase;margin-top:4px;">' + (p.metodo_pagamento||p.metodo||'') + '</p>' +
+                    '</div>' +
+                    '<span style="font-size:10px;background:#f1f5f9;padding:3px 6px;border-radius:6px;font-weight:700;white-space:nowrap;">' + hora + '</span>' +
+                '</div>' +
+                '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #f8fafc;">' +
+                    '<span style="color:#16a34a;font-weight:900;font-size:14px;">R$ ' + total + '</span>' +
+                    '<div onclick="event.stopPropagation()">' + btn + '</div>' +
+                '</div>' +
+            '</div>';
+    });
+
+    document.getElementById('count-pendente').innerText   = counts.pendente;
+    document.getElementById('count-preparo').innerText    = counts.preparo;
+    document.getElementById('count-caminho').innerText    = counts.caminho;
+    document.getElementById('count-finalizado').innerText = counts.finalizado;
+
+    document.getElementById('msg-vazia').style.display = totalExibido === 0 ? 'block' : 'none';
+}
+
+// ── MODAL DETALHES ───────────────────────────────────────────────
+function abrirDetalhes(id) {
+    const p = pedidosCache.find(x => x.id == id);
+    if (!p) return;
+    pedidoSelecionadoId = id;
+
+    const nomeCliente = p.cliente_nome || p.cliente || 'Não identificado';
+    const totalGeral  = parseFloat(p.total_geral || p.total || 0).toFixed(2);
+    const itensHtml   = formatarItens(p.itens);
+
+    document.getElementById('detalhe-conteudo').innerHTML =
+        '<div style="background:#f8fafc;padding:16px;border-radius:16px;">' +
+            '<p style="font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">👤 Cliente</p>' +
+            '<p style="font-weight:700;color:#1e293b;">' + nomeCliente + '</p>' +
+        '</div>' +
+        '<div style="background:#f8fafc;padding:16px;border-radius:16px;">' +
+            '<p style="font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;margin-bottom:6px;">🍔 Itens</p>' +
+            '<div style="font-weight:700;color:#1e293b;line-height:1.8;">' + itensHtml + '</div>' +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+            '<div style="background:#f8fafc;padding:12px;border-radius:16px;">' +
+                '<p style="font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;">💳 Pagamento</p>' +
+                '<p style="font-weight:700;color:#2563eb;">' + (p.metodo_pagamento||p.metodo||'N/A') + '</p>' +
+            '</div>' +
+            '<div style="background:#f8fafc;padding:12px;border-radius:16px;">' +
+                '<p style="font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;">💰 Total</p>' +
+                '<p style="font-weight:700;color:#16a34a;">R$ ' + totalGeral + '</p>' +
+            '</div>' +
+        '</div>' +
+        '<div style="background:#eff6ff;padding:16px;border-radius:16px;border-left:4px solid #3b82f6;">' +
+            '<p style="font-size:10px;font-weight:900;color:#3b82f6;text-transform:uppercase;margin-bottom:4px;">📍 Endereço</p>' +
+            '<p style="font-weight:700;color:#1e293b;">' + (p.endereco||'Retirada no Local') + '</p>' +
+            '<p style="font-size:10px;font-weight:900;color:#64748b;text-transform:uppercase;margin-top:6px;">Bairro: ' + (p.bairro||'Não informado') + '</p>' +
+            (p.taxa_entrega ? '<p style="font-size:10px;font-weight:900;color:#64748b;">Taxa: R$ ' + parseFloat(p.taxa_entrega).toFixed(2) + '</p>' : '') +
+        '</div>' +
+        '<div style="background:#f8fafc;padding:12px;border-radius:16px;">' +
+            '<p style="font-size:10px;font-weight:900;color:#94a3b8;text-transform:uppercase;">🕐 Status</p>' +
+            '<p style="font-weight:700;color:#334155;">' + p.status + '</p>' +
+        '</div>';
+
+    document.getElementById('modal-detalhe').classList.remove('hidden');
+}
+
+async function excluirPedidoConfirmado() {
+    if (!pedidoSelecionadoId || !confirm('Excluir permanentemente este pedido?')) return;
+    try {
+        const res = await fetch('/api/excluir_pedido/'+pedidoSelecionadoId, { method:'DELETE', credentials:'same-origin' });
+        if (res.ok) { document.getElementById('modal-detalhe').classList.add('hidden'); atualizarPedidos(); }
+    } catch(e) { alert('Erro ao excluir'); }
+}
+
+async function mudarStatus(id, novoStatus) {
+    try {
+        const res = await fetch('/api/pedido_status/'+id, {
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({status: novoStatus})
+        });
+        if (res.ok) setTimeout(atualizarPedidos, 300);
+        else alert('Erro ao mudar status');
+    } catch(e) { alert('Erro ao mudar status'); }
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+carregarHorarioTurno().then(() => {
+    atualizarPedidos();
+    setInterval(atualizarPedidos, 15000);
+});
+</script>
+{% endblock %}

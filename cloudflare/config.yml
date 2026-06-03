@@ -1,0 +1,10 @@
+# Gerado automaticamente por run.py — NÃO edite manualmente.
+# Altere as variáveis TUNNEL_NAME, DOMAIN, HOST e PORT no .env
+
+tunnel: m1-burguer
+credentials-file: ~/.cloudflared/m1-burguer.json
+
+ingress:
+  - hostname: m1-burguer.com
+    service: http://127.0.0.1:5000
+  - service: http_status:404

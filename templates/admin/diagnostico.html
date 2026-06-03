@@ -1,0 +1,82 @@
+{% extends "admin/base.html" %}
+{% block title %}Diagnóstico de Pedidos{% endblock %}
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h2 class="text-3xl font-black text-slate-800 italic uppercase tracking-tighter">🔍 Diagnóstico de Pedidos</h2>
+        <p class="text-slate-500 text-sm font-bold uppercase tracking-widest">Identifica exatamente onde está o problema</p>
+    </div>
+
+    <div id="resultado" class="space-y-4"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function rodar() {
+    const out = document.getElementById('resultado');
+    out.innerHTML = '<p style="color:#94a3b8;font-weight:700;">Rodando testes...</p>';
+    const resultados = [];
+
+    // TESTE 1: Sessão / autenticação
+    try {
+        const r = await fetch('/admin/diagnostico', { credentials: 'same-origin' });
+        const data = await r.json();
+        resultados.push({
+            titulo: 'Teste 1 — Banco de dados',
+            ok: data.total_pedidos >= 0,
+            detalhe: 'Total de pedidos no banco: <b>' + data.total_pedidos + '</b> | Itens: <b>' + data.total_itens_no_banco + '</b> | Sessão ativa: <b>' + data.sessao_ativa + '</b>',
+            extra: data.ultimos_pedidos.length > 0
+                ? '<pre style="font-size:11px;background:#f8fafc;padding:12px;border-radius:12px;overflow:auto;margin-top:8px;">' + JSON.stringify(data.ultimos_pedidos, null, 2) + '</pre>'
+                : '<p style="color:#f97316;font-weight:700;margin-top:8px;">⚠️ NENHUM PEDIDO NO BANCO — o cliente nunca finalizou um pedido, ou está usando um banco diferente.</p>'
+        });
+    } catch(e) {
+        resultados.push({ titulo: 'Teste 1 — Banco de dados', ok: false, detalhe: 'ERRO: ' + e.message });
+    }
+
+    // TESTE 2: API listar_pedidos
+    try {
+        const r2 = await fetch('/api/listar_pedidos', { credentials: 'same-origin' });
+        if (r2.status === 401) {
+            resultados.push({ titulo: 'Teste 2 — API /api/listar_pedidos', ok: false, detalhe: '❌ STATUS 401 — Sessão não está sendo enviada pelo browser. Verifique SESSION_COOKIE_SECURE e se está acessando por HTTP (não HTTPS).' });
+        } else if (!r2.ok) {
+            resultados.push({ titulo: 'Teste 2 — API /api/listar_pedidos', ok: false, detalhe: '❌ HTTP ' + r2.status });
+        } else {
+            const data2 = await r2.json();
+            const temItensObjeto = data2.length > 0 && Array.isArray(data2[0].itens) && typeof data2[0].itens[0] === 'object';
+            resultados.push({
+                titulo: 'Teste 2 — API /api/listar_pedidos',
+                ok: true,
+                detalhe: '✅ Retornou <b>' + data2.length + '</b> pedido(s). Formato dos itens: <b>' + (temItensObjeto ? 'objeto {produto_nome, quantidade}' : (data2[0]?.itens?.length ? 'string legada' : 'vazio')) + '</b>',
+                extra: data2.length > 0 ? '<pre style="font-size:11px;background:#f8fafc;padding:12px;border-radius:12px;overflow:auto;margin-top:8px;">' + JSON.stringify(data2.slice(0,2), null, 2) + '</pre>' : ''
+            });
+        }
+    } catch(e) {
+        resultados.push({ titulo: 'Teste 2 — API /api/listar_pedidos', ok: false, detalhe: 'ERRO ao parsear JSON: ' + e.message + ' — provavelmente redirecionou para /login' });
+    }
+
+    // TESTE 3: Mudar status (rota de update)
+    resultados.push({
+        titulo: 'Teste 3 — Rotas de status',
+        ok: true,
+        detalhe: 'POST /api/pedido_status/:id → atualizar_status_pedido() no banco. Se os testes 1 e 2 passaram, este funciona.'
+    });
+
+    // Renderiza
+    out.innerHTML = resultados.map(r => {
+        const cor   = r.ok ? '#16a34a' : '#dc2626';
+        const bg    = r.ok ? '#f0fdf4' : '#fef2f2';
+        const borda = r.ok ? '#86efac' : '#fca5a5';
+        return '<div style="background:' + bg + ';border:1px solid ' + borda + ';border-radius:16px;padding:20px;">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
+                '<span style="font-size:18px;">' + (r.ok ? '✅' : '❌') + '</span>' +
+                '<span style="font-weight:900;font-size:14px;color:' + cor + ';text-transform:uppercase;">' + r.titulo + '</span>' +
+            '</div>' +
+            '<p style="font-size:13px;color:#334155;">' + r.detalhe + '</p>' +
+            (r.extra || '') +
+        '</div>';
+    }).join('');
+}
+
+rodar();
+</script>
+{% endblock %}

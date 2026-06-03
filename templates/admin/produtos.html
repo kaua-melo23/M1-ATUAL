@@ -1,0 +1,221 @@
+{% extends "admin/base.html" %}
+{% block title %}Gerenciar Cardápio{% endblock %}
+
+{% block content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <div class="lg:col-span-1">
+        <div class="sticky top-8">
+            <h2 id="titulo-form" class="text-2xl font-black text-slate-800 italic uppercase mb-6">Novo Item</h2>
+            
+            <form id="formProduto" class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+                <input type="hidden" id="edit_id" name="edit_id">
+                
+                <div class="p-6 space-y-4">
+                    <!-- ID do produto (só aparece ao editar) -->
+                    <div id="produto-id-box" class="hidden bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-500">
+                      ID: <span id="produto-id-display" class="font-black text-slate-700 font-mono"></span>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Nome do Produto *</label>
+                        <input type="text" name="nome" id="nome" required class="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-blue-500 outline-none font-bold">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Preço *</label>
+                            <input type="number" name="preco" id="preco" step="0.01" required class="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-blue-500 outline-none font-bold">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Categoria *</label>
+                            <select name="categoria" id="categoria" class="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-blue-500 outline-none bg-white font-bold text-sm">
+                                <option value="">Carregando...</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- CAMPO OCULTAR NO CARDÁPIO -->
+                    <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-3">
+                        <div>
+                            <p class="font-black text-amber-700 text-xs uppercase tracking-wide">Ocultar no Cardápio</p>
+                            <p class="text-[10px] text-amber-500">Produto salvo mas não exibido ao cliente</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="ocultar-produto" class="sr-only peer">
+                            <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                        </label>
+                    </div>
+
+                    <button type="button" onclick="document.getElementById('opcionais').classList.toggle('hidden')" class="text-blue-500 text-[10px] font-bold uppercase tracking-widest">+ Opcionais (Foto/Desc)</button>
+
+                    <div id="opcionais" class="hidden space-y-4 pt-2">
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Descrição</label>
+                            <textarea name="ingredientes" id="ingredientes" rows="2" class="w-full border-2 border-gray-100 p-3 rounded-xl focus:border-blue-500 outline-none text-sm"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black text-gray-400 uppercase mb-1">Trocar Foto</label>
+                            <input type="file" name="foto" id="foto" class="text-[10px] w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="p-6 bg-gray-50 flex gap-2">
+                    <button type="button" onclick="salvarProduto()" id="btn-submit" class="flex-1 bg-slate-900 text-white py-3 rounded-xl font-black text-sm uppercase transition hover:bg-blue-600">Cadastrar</button>
+                    <button type="button" id="btn-cancelar" onclick="limparForm()" class="hidden bg-gray-200 text-gray-600 px-4 py-3 rounded-xl font-black text-sm uppercase">X</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="lg:col-span-2">
+        <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+            <h2 class="text-2xl font-black text-slate-800 italic uppercase">Itens no Cardápio</h2>
+            <input type="text" id="busca-produtos" oninput="filtrarProdutos()" placeholder="🔍 Pesquisar por nome ou ID..." class="flex-1 min-w-48 max-w-72 p-3 border-2 border-slate-100 rounded-xl font-bold outline-none focus:border-blue-500 text-sm">
+        </div>
+        <div id="lista-produtos" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .card-produto { transition: box-shadow 0.15s, transform 0.15s; }
+  .card-produto:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.10); transform: translateY(-2px); }
+</style>
+<script>
+    let todosProdutos = [];
+
+    async function carregarCategorias() {
+        try {
+            const res = await fetch('/api/categorias');
+            const cats = await res.json();
+            const sel = document.getElementById('categoria');
+            sel.innerHTML = '';
+            cats.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.nome;
+                opt.textContent = `${c.emoji} ${c.nome}`;
+                sel.appendChild(opt);
+            });
+        } catch(e) {
+            console.error('Erro ao carregar categorias', e);
+        }
+    }
+
+    async function carregarProdutos() {
+        const res = await fetch('/api/produtos');
+        todosProdutos = await res.json();
+        renderizarProdutos(todosProdutos);
+    }
+
+    function filtrarProdutos() {
+        const q = document.getElementById('busca-produtos').value.toLowerCase();
+        const filtrados = todosProdutos.filter(p =>
+            p.nome.toLowerCase().includes(q) ||
+            String(p.id).includes(q) ||
+            (p.categoria || '').toLowerCase().includes(q)
+        );
+        renderizarProdutos(filtrados);
+    }
+
+    function renderizarProdutos(produtos) {
+        const container = document.getElementById('lista-produtos');
+        container.innerHTML = "";
+
+        if (produtos.length === 0) {
+            container.innerHTML = `<div class="col-span-2 text-center py-16 text-gray-400 italic font-bold bg-white rounded-3xl shadow-sm">Nenhum produto encontrado.</div>`;
+            return;
+        }
+
+        produtos.forEach(p => {
+            const oculto = p.visivel === 0;
+            container.innerHTML += `
+                <div class="card-produto bg-white p-4 rounded-3xl shadow-sm border-2 ${oculto ? 'border-amber-200 opacity-80' : 'border-gray-100'} flex gap-4 items-start">
+                    <div class="relative shrink-0">
+                        <img src="/static/uploads/${p.imagem || 'default.jpg'}" class="w-16 h-16 rounded-2xl object-cover bg-gray-100">
+                        ${oculto ? '<span class="absolute -top-1 -right-1 bg-amber-400 text-white text-[8px] font-black px-1 rounded-full">OCULTO</span>' : ''}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-start justify-between gap-2">
+                          <div class="min-w-0">
+                            <h4 class="font-black text-slate-800 text-sm uppercase truncate">${p.nome}</h4>
+                            <p class="text-green-600 font-bold text-xs italic">R$ ${parseFloat(p.preco).toFixed(2)}</p>
+                            <p class="text-gray-400 text-[10px] truncate">${p.categoria || ''}</p>
+                          </div>
+                          <span class="shrink-0 text-[10px] font-mono bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg">#${p.id}</span>
+                        </div>
+                        ${p.ingredientes ? `<p class="text-gray-400 text-[10px] mt-1 line-clamp-2">${p.ingredientes}</p>` : ''}
+                    </div>
+                    <div class="flex flex-col gap-2 shrink-0">
+                        <button onclick='prepararEdicao(${JSON.stringify(p)})' class="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm" title="Editar">✏️</button>
+                        <button onclick="deletarProduto(${p.id})" class="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm" title="Excluir">🗑️</button>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    function prepararEdicao(p) {
+        document.getElementById('titulo-form').innerText = "Editar Item";
+        document.getElementById('btn-submit').innerText = "Salvar Alterações";
+        document.getElementById('btn-submit').classList.replace('bg-slate-900', 'bg-blue-600');
+        document.getElementById('btn-cancelar').classList.remove('hidden');
+        document.getElementById('opcionais').classList.remove('hidden');
+        
+        document.getElementById('edit_id').value = p.id;
+        document.getElementById('nome').value = p.nome;
+        document.getElementById('preco').value = p.preco;
+        document.getElementById('categoria').value = p.categoria;
+        document.getElementById('ingredientes').value = p.ingredientes || '';
+        document.getElementById('ocultar-produto').checked = (p.visivel === 0);
+
+        // Mostrar ID
+        document.getElementById('produto-id-box').classList.remove('hidden');
+        document.getElementById('produto-id-display').innerText = p.id;
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function limparForm() {
+        document.getElementById('formProduto').reset();
+        document.getElementById('edit_id').value = "";
+        document.getElementById('titulo-form').innerText = "Novo Item";
+        document.getElementById('btn-submit').innerText = "Cadastrar";
+        document.getElementById('btn-submit').classList.replace('bg-blue-600', 'bg-slate-900');
+        document.getElementById('btn-cancelar').classList.add('hidden');
+        document.getElementById('ocultar-produto').checked = false;
+        document.getElementById('produto-id-box').classList.add('hidden');
+    }
+
+    async function salvarProduto() {
+        const id = document.getElementById('edit_id').value;
+        const url = id ? `/api/produtos/editar/${id}` : '/api/produtos';
+        const formData = new FormData(document.getElementById('formProduto'));
+        const ocultar = document.getElementById('ocultar-produto').checked;
+        formData.set('visivel', ocultar ? '0' : '1');
+        const res = await fetch(url, { method: 'POST', body: formData });
+        if (res.ok) {
+            limparForm();
+            carregarProdutos();
+        } else {
+            alert('Erro ao salvar produto.');
+        }
+    }
+
+    async function deletarProduto(id) {
+        if (confirm("Deseja realmente excluir este item?")) {
+            const res = await fetch(`/api/produtos/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                carregarProdutos();
+            } else {
+                alert('Erro ao excluir produto.');
+            }
+        }
+    }
+
+    carregarCategorias();
+    carregarProdutos();
+</script>
+{% endblock %}
