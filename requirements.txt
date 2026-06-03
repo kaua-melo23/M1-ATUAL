@@ -1,0 +1,21 @@
+# Web
+flask>=3.0.0
+waitress>=3.0.0
+
+# Rate Limiting (proteção DDoS / brute-force)
+flask-limiter>=3.5.0
+
+# Variáveis de ambiente
+python-dotenv>=1.0.0
+
+# Pagamento
+mercadopago>=2.2.0
+
+# IA
+anthropic>=0.25.0
+
+# Impressora térmica (opcional — remova se não usar)
+python-escpos>=3.0.0
+
+# Timezone
+pytz>=2024.1
